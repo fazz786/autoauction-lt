@@ -1,0 +1,62 @@
+from rest_framework import generics, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Listing, ListingImage
+from .serializers import ListingSerializer, ListingCreateSerializer
+
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return request.user.is_authenticated and request.user.is_admin
+
+
+class ListingListView(generics.ListCreateAPIView):
+    """
+    GET  /api/listings/        — public: list all active listings
+    POST /api/listings/        — admin only: create new listing
+    Supports: ?search=BMW  ?category=suv  ?status=active  ?ordering=starting_bid
+    """
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends    = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields      = ['make', 'model', 'year', 'vin', 'category']
+    ordering_fields    = ['starting_bid', 'year', 'mileage_km', 'created_at']
+    ordering           = ['-created_at']
+
+    def get_queryset(self):
+        qs = Listing.objects.prefetch_related('images').all()
+        # Filter by status (default: only active for public)
+        status = self.request.query_params.get('status')
+        category = self.request.query_params.get('category')
+        if status:
+            qs = qs.filter(status=status)
+        elif not (self.request.user.is_authenticated and self.request.user.is_admin):
+            qs = qs.filter(status='active')
+        if category:
+            qs = qs.filter(category__iexact=category)
+        return qs
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ListingCreateSerializer
+        return ListingSerializer
+
+
+class ListingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/listings/<id>/  — public: view single listing
+    PUT    /api/listings/<id>/  — admin: update
+    DELETE /api/listings/<id>/  — admin: delete
+    """
+    queryset           = Listing.objects.prefetch_related('images').all()
+    serializer_class   = ListingSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+
+class ListingImageUploadView(generics.CreateAPIView):
+    """POST /api/listings/<id>/images/ — admin: upload images for a listing"""
+    permission_classes = [permissions.IsAdminUser]
+
+    def perform_create(self, serializer):
+        listing = Listing.objects.get(pk=self.kwargs['pk'])
+        serializer.save(listing=listing)
