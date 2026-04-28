@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { S } from '../styles/theme';
-import { CARS } from '../data/mockData';
+import { getAuctions } from '../api/auctions';
+import { apiFetch } from '../api/config';
 import CarCard from '../components/CarCard';
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -8,7 +10,40 @@ import CarCard from '../components/CarCard';
    how-it-works steps, featured vehicles, and seller CTA.
 ───────────────────────────────────────────────────────────────────────────── */
 export default function HomePage({ setPage, setSelectedCar }) {
-  const liveCars = CARS.filter((c) => c.status === 'live');
+  const [auctions, setAuctions] = useState([]);
+  const [stats, setStats] = useState({
+    active_listings: '—', registered_buyers: '—', traded_this_month: '—', satisfaction_rate: '—',
+  });
+
+  useEffect(() => {
+    getAuctions().then((data) => setAuctions(data.results || [])).catch(() => {});
+    apiFetch('/auctions/stats/').then(setStats).catch(() => {});
+  }, []);
+
+  const mapAuction = (a) => ({
+    id:            a.id,
+    auctionId:     a.id,
+    make:          a.listing?.make        || '',
+    model:         a.listing?.model       || '',
+    year:          a.listing?.year        || '',
+    mileage:       a.listing?.mileage_display || '',
+    fuel:          a.listing?.fuel        || '',
+    transmission:  a.listing?.transmission || '',
+    category:      a.listing?.category    || '',
+    condition:     a.listing?.condition   || '',
+    damage:        a.listing?.damage      || '',
+    description:   a.listing?.description || '',
+    startingBid:   parseFloat(a.listing?.starting_bid || 0),
+    status:        a.status === 'scheduled' ? 'upcoming' : a.status,
+    currentBid:    a.current_bid          || 0,
+    auctionEnd:    new Date(a.end_time).getTime(),
+    highestBidder: a.winner?.username     || '',
+    images:        a.listing?.images?.map(i => i.image) || [],
+    listing:       a.listing,
+    bids: [], comments: [],
+  });
+
+  const liveCars = auctions.filter((a) => a.status === 'live').map(mapAuction);
 
   return (
     <div className="fade-in">
@@ -46,7 +81,12 @@ export default function HomePage({ setPage, setSelectedCar }) {
 
         {/* Stats row */}
         <div style={{ display: 'flex', gap: 48, marginTop: 64 }}>
-          {[['247', 'Active Listings'], ['1,840', 'Registered Buyers'], ['€2.4M', 'Traded This Month'], ['98%', 'Satisfaction Rate']].map(([n, l]) => (
+          {[
+            [stats.active_listings === '—' ? '—' : stats.active_listings.toLocaleString(), 'Active Listings'],
+            [stats.registered_buyers === '—' ? '—' : stats.registered_buyers.toLocaleString(), 'Registered Buyers'],
+            [stats.traded_this_month === '—' ? '—' : `€${(stats.traded_this_month / 1e6).toFixed(1)}M`, 'Traded This Month'],
+            [stats.satisfaction_rate === '—' ? '—' : `${stats.satisfaction_rate}%`, 'Satisfaction Rate'],
+          ].map(([n, l]) => (
             <div key={l}>
               <div style={{ fontSize: 38, fontWeight: 700, color: '#f59e0b', fontFamily: 'system-ui' }}>{n}</div>
               <div style={{ fontSize: 13, color: '#64748b', fontFamily: 'system-ui', marginTop: 3 }}>{l}</div>
@@ -113,7 +153,7 @@ export default function HomePage({ setPage, setSelectedCar }) {
           <h2 style={S.sectionTitle}>Recently Listed</h2>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 20 }}>
-          {CARS.filter((c) => c.status !== 'ended').slice(0, 4).map((car) => (
+          {auctions.filter((a) => a.status !== 'ended').slice(0, 4).map(mapAuction).map((car) => (
             <CarCard key={car.id} car={car} compact onClick={() => { setSelectedCar(car); setPage('carDetail'); }} />
           ))}
         </div>

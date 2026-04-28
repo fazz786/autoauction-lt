@@ -17,4 +17,5 @@ urlpatterns = [
     path('api/bids/',       include('apps.bids.urls')),
     path('api/comments/',   include('apps.comments.urls')),
     path('api/messages/',   include('apps.messages.urls')),
+    path('api/chat/',       include('apps.chat.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

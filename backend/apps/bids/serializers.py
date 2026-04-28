@@ -26,13 +26,14 @@ class BidCreateSerializer(serializers.ModelSerializer):
         if not auction.is_live:
             raise serializers.ValidationError('This auction is not currently live.')
 
-        min_bid = auction.get_current_bid() + 1
+        min_bid = auction.get_current_bid() + 100
         if amount < min_bid:
             raise serializers.ValidationError(
-                f'Bid must be at least €{min_bid:,.2f} (current bid + €1 minimum increment).'
+                f'Bid must be at least €{min_bid:,.2f} (minimum increment is €100).'
             )
         return data
 
     def create(self, validated_data):
         validated_data['bidder'] = self.context['request'].user
+        validated_data['status'] = 'approved'
         return super().create(validated_data)

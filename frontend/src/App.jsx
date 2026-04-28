@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminDashboard from "./pages/AdminDashboard";
+import MessageWidget from "./components/MessageWidget";
 import { getSavedToken, getMe } from "./api/auth";
 
 export default function App() {
@@ -52,11 +53,12 @@ export default function App() {
       {page === "carDetail" && selectedCar && <CarDetailPage car={selectedCar} user={user} setPage={navigate} showToast={showToast} />}
       {page === "login"     && <LoginPage setPage={navigate} setUser={setUser} showToast={showToast} />}
       {page === "signup"    && <SignupPage setPage={navigate} setUser={setUser} showToast={showToast} />}
-      {page === "dashboard" && user && <DashboardPage user={user} setPage={navigate} setSelectedCar={setSelectedCar} showToast={showToast} />}
-      {page === "admin"     && user?.role === "admin" && <AdminDashboard showToast={showToast} />}
+      {(page === "dashboard" || page === "admin") && user?.role === "admin" && <AdminDashboard showToast={showToast} />}
+      {page === "dashboard" && user && user.role !== "admin" && <DashboardPage user={user} setPage={navigate} setSelectedCar={setSelectedCar} showToast={showToast} />}
       {page === "dashboard" && !user && navigate("login")}
       {page === "admin"     && user?.role !== "admin" && navigate("home")}
       <Footer />
+      {user && user.role !== 'admin' && <MessageWidget showToast={showToast} />}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

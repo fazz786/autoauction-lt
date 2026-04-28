@@ -39,20 +39,12 @@ export default function Nav({ page, setPage, user, setUser }) {
             {label}
           </span>
         ))}
-        {user?.role === 'admin' && (
-          <span
-            onClick={() => setPage('admin')}
-            style={{ ...S.navLink, ...(page === 'admin' ? S.navLinkActive : {}) }}
-          >
-            Admin
-          </span>
-        )}
         {user && (
           <span
             onClick={() => setPage('dashboard')}
-            style={{ ...S.navLink, ...(page === 'dashboard' ? S.navLinkActive : {}) }}
+            style={{ ...S.navLink, ...((page === 'dashboard' || page === 'admin') ? S.navLinkActive : {}) }}
           >
-            Dashboard
+            {user.role === 'admin' ? 'Admin Dashboard' : 'Dashboard'}
           </span>
         )}
       </div>

@@ -14,6 +14,25 @@ import Countdown from './Countdown';
 export default function CarCard({ car, onClick, compact = false }) {
   const [hovered, setHovered] = useState(false);
 
+  // Normalise API auction objects and old mock-data objects to the same shape
+  const listing   = car.listing || car;
+  const rawImages = listing.images || car.images || [];
+  const imageUrl  = rawImages.length > 0
+    ? (typeof rawImages[0] === 'string' ? rawImages[0] : (rawImages[0].image?.startsWith('http') ? rawImages[0].image : `http://localhost:8000${rawImages[0].image}`))
+    : null;
+  const make         = listing.make         || car.make         || '';
+  const model        = listing.model        || car.model        || '';
+  const year         = listing.year         || car.year         || '';
+  const mileage      = listing.mileage_display || car.mileage  || (listing.mileage_km ? `${Number(listing.mileage_km).toLocaleString()} km` : '—');
+  const fuel         = listing.fuel         || car.fuel         || '';
+  const transmission = listing.transmission || car.transmission || '';
+  const category     = listing.category     || car.category     || '';
+  const condition    = listing.condition    || car.condition     || '';
+  const currentBid   = car.current_bid      ?? car.currentBid   ?? 0;
+  const auctionEnd   = car.end_time ? new Date(car.end_time).getTime() : car.auctionEnd;
+  const status       = car.status           || listing.status   || '';
+  const highestBidder = car.highestBidder   || '';
+
   return (
     <div
       onClick={onClick}
@@ -28,22 +47,26 @@ export default function CarCard({ car, onClick, compact = false }) {
         overflow:   'hidden',
         background: '#1e293b',
       }}>
-        <img
-          src={car.images[0]}
-          alt={`${car.make} ${car.model}`}
-          style={{
-            width:      '100%',
-            height:     '100%',
-            objectFit:  'cover',
-            transition: 'transform 0.4s',
-            transform:  hovered ? 'scale(1.07)' : 'scale(1)',
-          }}
-          onError={(e) => { e.target.style.display = 'none'; }}
-        />
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={`${make} ${model}`}
+            style={{
+              width:      '100%',
+              height:     '100%',
+              objectFit:  'cover',
+              transition: 'transform 0.4s',
+              transform:  hovered ? 'scale(1.07)' : 'scale(1)',
+            }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, color: '#334155' }}>🚗</div>
+        )}
         <div style={{ position: 'absolute', top: 12, left: 12 }}>
-          <StatusBadge status={car.status} />
+          <StatusBadge status={status} />
         </div>
-        {car.status === 'live' && (
+        {status === 'live' && auctionEnd && (
           <div style={{
             position:   'absolute',
             bottom:     10,
@@ -52,7 +75,7 @@ export default function CarCard({ car, onClick, compact = false }) {
             borderRadius: 6,
             padding:    '3px 10px',
           }}>
-            <Countdown endTime={car.auctionEnd} />
+            <Countdown endTime={auctionEnd} />
           </div>
         )}
       </div>
@@ -60,15 +83,15 @@ export default function CarCard({ car, onClick, compact = false }) {
       {/* Details */}
       <div style={{ padding: compact ? '14px 16px' : '20px' }}>
         <div style={{ fontSize: compact ? 15 : 18, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>
-          {car.year} {car.make} {car.model}
+          {year} {make} {model}
         </div>
         <div style={{ fontSize: 12, color: '#64748b', marginBottom: compact ? 12 : 14, fontFamily: 'system-ui' }}>
-          {car.mileage} · {car.fuel} · {car.transmission}
+          {mileage} · {fuel} · {transmission}
         </div>
 
         {!compact && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-            {[car.category, car.condition].map((tag) => (
+            {[category, condition].map((tag) => (
               <span key={tag} style={{
                 ...S.chip,
                 background: '#1e293b',
@@ -88,14 +111,14 @@ export default function CarCard({ car, onClick, compact = false }) {
               CURRENT BID
             </div>
             <div style={{ fontSize: compact ? 18 : 24, fontWeight: 700, color: '#f59e0b', fontFamily: 'system-ui' }}>
-              €{car.currentBid.toLocaleString()}
+              €{Number(currentBid).toLocaleString()}
             </div>
           </div>
-          {!compact && car.status === 'live' && (
+          {!compact && status === 'live' && highestBidder && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'system-ui' }}>Top bidder</div>
               <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'system-ui', fontWeight: 600 }}>
-                @{car.highestBidder}
+                @{highestBidder}
               </div>
             </div>
           )}

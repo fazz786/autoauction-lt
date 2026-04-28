@@ -7,6 +7,9 @@ import { getComments, postComment, likeComment } from '../api/comments';
 import { getBidsForAuction } from '../api/bids';
 import useAuctionSocket from '../hooks/useWebSocket';
 
+const MEDIA = 'http://localhost:8000';
+const imgUrl = (src) => !src ? null : src.startsWith('http') ? src : `${MEDIA}${src}`;
+
 export default function CarDetailPage({ car, user, setPage, showToast }) {
   const [bidAmount,  setBidAmount]  = useState('');
   const [bidError,   setBidError]   = useState('');
@@ -48,7 +51,7 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
     try {
       await placeBid(car.auctionId, amt);
       setBidAmount('');
-      showToast('Bid submitted! Pending admin approval.', 'success');
+      showToast('Bid placed successfully!', 'success');
       const updated = await getBidsForAuction(car.auctionId);
       setBids(Array.isArray(updated) ? updated : updated.results || []);
     } catch (err) {
@@ -87,7 +90,7 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 44 }}>
         <div>
           <div style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 10, height: 420, background: '#1e293b', position: 'relative' }}>
-            <img src={car.images?.[imgIdx] || car.images?.[0]} alt={car.make} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={imgUrl(car.images?.[imgIdx] || car.images?.[0])} alt={car.make} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div style={{ position: 'absolute', top: 16, left: 16 }}><StatusBadge status={car.status} /></div>
             {socket.connected && car.status === 'live' && (
               <div style={{ position: 'absolute', top: 16, right: 16, background: '#22c55e22', border: '1px solid #22c55e44', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#22c55e', fontFamily: 'system-ui' }}>
@@ -104,7 +107,7 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
             <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
               {car.images.map((img, i) => (
                 <div key={i} onClick={() => setImgIdx(i)} style={{ width: 88, height: 64, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', border: imgIdx===i?'2px solid #f59e0b':'2px solid transparent' }}>
-                  <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={imgUrl(img)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             </div>
@@ -200,7 +203,7 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
                     {bidError && <div style={{color:'#ef4444',fontSize:13,marginTop:6,fontFamily:'system-ui'}}>{bidError}</div>}
                   </div>
                   <button onClick={handleBid} style={{...S.btn,...S.btnPrimary,width:'100%',fontSize:15,padding:'14px'}}>{user?'Place Bid →':'Login to Bid'}</button>
-                  <div style={{fontSize:12,color:'#64748b',marginTop:12,fontFamily:'system-ui',textAlign:'center'}}>All bids require admin approval</div>
+                  <div style={{fontSize:12,color:'#64748b',marginTop:12,fontFamily:'system-ui',textAlign:'center'}}>Minimum increment: €100</div>
                 </>
               )}
               {car.status === 'ended' && <div style={{background:'#6b728018',border:'1px solid #6b728044',borderRadius:9,padding:16,color:'#6b7280',textAlign:'center',fontFamily:'system-ui'}}>This auction has ended</div>}

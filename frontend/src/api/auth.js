@@ -84,6 +84,16 @@ export async function toggleBlockUser(userId) {
 }
 
 /**
+ * Admin: set or remove admin role for a user.
+ */
+export async function setUserRole(userId, role) {
+  return apiFetch(`/auth/users/${userId}/role/`, {
+    method: 'POST',
+    body: JSON.stringify({ role }),
+  });
+}
+
+/**
  * Check if a token exists in localStorage (used on app load).
  */
 export function getSavedToken() {

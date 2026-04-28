@@ -36,16 +36,8 @@ export async function getPendingBids() {
 }
 
 /**
- * Admin: approve a bid.
- * This triggers a WebSocket broadcast to all live clients.
+ * Admin: mark this bid as the winner — ends the auction.
  */
-export async function approveBid(bidId) {
-  return apiFetch(`/bids/${bidId}/approve/`, { method: 'POST' });
-}
-
-/**
- * Admin: reject a bid.
- */
-export async function rejectBid(bidId) {
-  return apiFetch(`/bids/${bidId}/reject/`, { method: 'POST' });
+export async function setWinner(bidId) {
+  return apiFetch(`/bids/${bidId}/winner/`, { method: 'POST' });
 }

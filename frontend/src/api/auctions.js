@@ -2,7 +2,33 @@
    api/auctions.js
    Fetches auctions and listings from the Django REST API.
 ───────────────────────────────────────────────────────────────────────────── */
-import { apiFetch } from './config';
+import { apiFetch, BASE_URL } from './config';
+
+/**
+ * Admin: delete a single image from a listing.
+ */
+export async function deleteListingImage(listingId, imageId) {
+  return apiFetch(`/listings/${listingId}/images/${imageId}/`, { method: 'DELETE' });
+}
+
+/**
+ * Upload a single image to a listing (multipart/form-data).
+ */
+export async function uploadListingImage(listingId, file) {
+  const form = new FormData();
+  form.append('image', file);
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${BASE_URL}/listings/${listingId}/images/`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Token ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Upload failed (${res.status})`);
+  }
+  return res.json();
+}
 
 /* ── Auctions ──────────────────────────────────────────────────────────────── */
 
@@ -85,4 +111,21 @@ export async function updateListing(id, data) {
  */
 export async function deleteListing(id) {
   return apiFetch(`/listings/${id}/`, { method: 'DELETE' });
+}
+
+/**
+ * Admin: update an auction (start/end time, status).
+ */
+export async function updateAuction(id, data) {
+  return apiFetch(`/auctions/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Admin: delete/cancel an auction.
+ */
+export async function deleteAuction(id) {
+  return apiFetch(`/auctions/${id}/`, { method: 'DELETE' });
 }

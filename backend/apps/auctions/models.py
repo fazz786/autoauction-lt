@@ -36,8 +36,7 @@ class Auction(models.Model):
 
     @property
     def is_live(self):
-        now = timezone.now()
-        return self.status == 'live' and self.start_time <= now <= self.end_time
+        return self.status == 'live'
 
     @property
     def starting_bid(self):

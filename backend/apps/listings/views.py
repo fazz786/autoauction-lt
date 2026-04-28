@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Listing, ListingImage
-from .serializers import ListingSerializer, ListingCreateSerializer
+from .serializers import ListingSerializer, ListingCreateSerializer, ListingImageSerializer
 
 
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -54,9 +54,32 @@ class ListingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ListingImageUploadView(generics.CreateAPIView):
-    """POST /api/listings/<id>/images/ — admin: upload images for a listing"""
-    permission_classes = [permissions.IsAdminUser]
+    """POST /api/listings/<id>/images/ — admin: upload one image for a listing (multipart)"""
+    permission_classes  = [permissions.IsAdminUser]
+    serializer_class    = ListingImageSerializer
+    parser_classes      = [__import__('rest_framework.parsers', fromlist=['MultiPartParser']).MultiPartParser]
 
     def perform_create(self, serializer):
         listing = Listing.objects.get(pk=self.kwargs['pk'])
-        serializer.save(listing=listing)
+        # First image uploaded becomes primary
+        is_primary = not listing.images.exists()
+        serializer.save(listing=listing, is_primary=is_primary)
+
+
+class ListingImageDeleteView(generics.DestroyAPIView):
+    """DELETE /api/listings/<pk>/images/<image_pk>/ — admin: delete a single image"""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get_object(self):
+        return ListingImage.objects.get(pk=self.kwargs['image_pk'], listing_id=self.kwargs['pk'])
+
+    def perform_destroy(self, instance):
+        was_primary = instance.is_primary
+        instance.image.delete(save=False)   # remove file from disk
+        instance.delete()
+        if was_primary:
+            # promote next image to primary
+            nxt = ListingImage.objects.filter(listing_id=self.kwargs['pk']).first()
+            if nxt:
+                nxt.is_primary = True
+                nxt.save()
