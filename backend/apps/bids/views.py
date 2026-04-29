@@ -84,9 +84,16 @@ class SetWinnerView(APIView):
             return Response({'detail': 'Bid not found.'}, status=404)
 
         auction = bid.auction
+        if auction.status != 'ended':
+            return Response(
+                {'detail': 'The auction must be ended before selecting a winner. End the auction first from the Auctions tab.'},
+                status=400
+            )
+        if auction.winner:
+            return Response({'detail': 'A winner has already been selected for this auction.'}, status=400)
+
         auction.winner = bid.bidder
-        auction.status = 'ended'
-        auction.save(update_fields=['winner', 'status'])
+        auction.save(update_fields=['winner'])
 
         # Mark winning bid, clear others
         auction.bids.exclude(pk=bid.pk).update(status='rejected')

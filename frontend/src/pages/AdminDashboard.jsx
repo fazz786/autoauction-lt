@@ -131,7 +131,7 @@ export default function AdminDashboard({ showToast }) {
         {[
           ['Live Auctions', auctions.filter(a=>a.status==='live').length, '#22c55e'],
           ['Total Listings', listings.length, '#3b82f6'],
-          ['Total Bids', bids.length, '#f59e0b'],
+          ['Awaiting Winner', auctions.filter(a=>a.status==='ended'&&!a.winner).length, '#f59e0b'],
           ['Users', users.length, '#a855f7'],
           ['Unread Messages', chatConvos.reduce((s,c)=>s+c.unread,0), '#ef4444'],
         ].map(([l,v,c]) => (
@@ -146,7 +146,7 @@ export default function AdminDashboard({ showToast }) {
         {['overview','listings','auctions','bids','users','messages','profile'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ background:'none', border:'none', borderBottom:tab===t?'2px solid #f59e0b':'2px solid transparent', padding:'12px 22px', color:tab===t?'#f59e0b':'#64748b', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'system-ui', letterSpacing:0.5, display:'flex', alignItems:'center', gap:7 }}>
             {t.toUpperCase()}
-            {t==='bids' && bids.length>0 && <span style={{background:'#1e293b',color:'#94a3b8',borderRadius:10,padding:'1px 7px',fontSize:11}}>{bids.length}</span>}
+            {t==='bids' && auctions.filter(a=>a.status==='ended'&&!a.winner).length>0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{auctions.filter(a=>a.status==='ended'&&!a.winner).length} need winner</span>}
             {t==='messages' && chatConvos.reduce((s,c)=>s+c.unread,0)>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{chatConvos.reduce((s,c)=>s+c.unread,0)}</span>}
           </button>
         ))}
@@ -170,24 +170,25 @@ export default function AdminDashboard({ showToast }) {
             {auctions.filter(a=>a.status==='live').length===0 && <div style={{color:'#64748b',fontFamily:'system-ui',padding:'20px 0',textAlign:'center'}}>No live auctions</div>}
           </div>
           <div style={{background:'#0d1117',border:'1px solid #1e293b',borderRadius:13,padding:24}}>
-            <h3 style={{fontSize:16,fontWeight:700,marginBottom:20}}>Pending Bid Approvals</h3>
-            {bids.filter(b=>b.status==='pending').length===0
-              ? <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'30px 0'}}>All bids reviewed ✓</div>
-              : bids.filter(b=>b.status==='pending').slice(0,4).map(bid => (
-                <div key={bid.id} style={{padding:'14px 0',borderBottom:'1px solid #1e293b22'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                    <div>
-                      <div style={{fontSize:14,fontFamily:'system-ui',fontWeight:600}}>{bid.auction}</div>
-                      <div style={{fontSize:12,color:'#64748b',fontFamily:'system-ui',marginTop:3}}>@{bid.bidder_name} · {new Date(bid.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+            <h3 style={{fontSize:16,fontWeight:700,marginBottom:20}}>Awaiting Winner Selection</h3>
+            {auctions.filter(a => a.status === 'ended' && !a.winner).length === 0
+              ? <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'30px 0'}}>No ended auctions awaiting winner ✓</div>
+              : auctions.filter(a => a.status === 'ended' && !a.winner).slice(0,4).map(a => {
+                  const topBid = [...bids].filter(b => b.auction === a.id).sort((x,y) => y.amount - x.amount)[0];
+                  return (
+                    <div key={a.id} style={{padding:'14px 0',borderBottom:'1px solid #1e293b22'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div>
+                          <div style={{fontSize:14,fontFamily:'system-ui',fontWeight:600}}>{a.listing?.year} {a.listing?.make} {a.listing?.model}</div>
+                          <div style={{fontSize:12,color:'#64748b',fontFamily:'system-ui',marginTop:3}}>
+                            {bids.filter(b=>b.auction===a.id).length} bid(s) · ended {new Date(a.end_time).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                          </div>
+                        </div>
+                        <button onClick={() => setTab('bids')} style={{...S.btn,...S.btnSuccess,padding:'6px 14px',fontSize:12}}>Select Winner →</button>
+                      </div>
                     </div>
-                    <div style={{fontSize:20,fontWeight:700,color:'#f59e0b',fontFamily:'system-ui'}}>€{Number(bid.amount).toLocaleString()}</div>
-                  </div>
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={()=>handleApproveBid(bid.id)} style={{...S.btn,...S.btnSuccess,padding:'6px 14px',fontSize:12}}>✓ Approve</button>
-                    <button onClick={()=>handleRejectBid(bid.id)} style={{...S.btn,...S.btnDanger,padding:'6px 14px',fontSize:12}}>✕ Reject</button>
-                  </div>
-                </div>
-              ))
+                  );
+                })
             }
           </div>
         </div>
@@ -279,28 +280,31 @@ export default function AdminDashboard({ showToast }) {
       {!loading && tab==='bids' && (
         <div className="fade-in">
           <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>All Bids</h3>
-          <p style={{color:'#64748b',fontFamily:'system-ui',fontSize:13,marginBottom:20}}>Bids are live — set a winner to end the auction.</p>
+          <p style={{color:'#64748b',fontFamily:'system-ui',fontSize:13,marginBottom:20}}>Bids appear instantly. End the auction first, then select a winner from the bids below.</p>
           <table style={S.table}>
             <thead><tr><th style={S.th}>Auction</th><th style={S.th}>Bidder</th><th style={S.th}>Amount</th><th style={S.th}>Time</th><th style={S.th}>Status</th><th style={S.th}>Action</th></tr></thead>
             <tbody>
               {bids.map(bid => {
                 const auctionForBid = auctions.find(a => a.id === bid.auction);
-                const isLive = auctionForBid?.status === 'live';
+                const isEnded      = auctionForBid?.status === 'ended';
+                const hasWinner    = !!auctionForBid?.winner;
                 return (
                   <tr key={bid.id}>
                     <td style={{...S.td,fontWeight:600,fontSize:12}}>
                       {auctionForBid ? `${auctionForBid.listing?.year} ${auctionForBid.listing?.make} ${auctionForBid.listing?.model}` : `#${bid.auction}`}
+                      {isEnded && <span style={{marginLeft:6,fontSize:10,color:'#64748b',fontFamily:'system-ui'}}>[ENDED]</span>}
                     </td>
                     <td style={{...S.td,color:'#94a3b8'}}>@{bid.bidder_name}</td>
                     <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui'}}>€{Number(bid.amount).toLocaleString()}</td>
                     <td style={{...S.td,color:'#64748b',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
                     <td style={S.td}>
-                      {bid.status==='approved' && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
-                      {bid.status==='rejected' && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
-                      {bid.status==='pending'  && <span style={{color:'#64748b',fontSize:12}}>—</span>}
+                      {bid.status === 'rejected' && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
+                      {bid.status === 'approved' && hasWinner  && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
+                      {bid.status === 'approved' && !hasWinner && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
+                      {bid.status === 'pending'  && <span style={{color:'#64748b',fontSize:12}}>—</span>}
                     </td>
                     <td style={S.td}>
-                      {isLive && bid.status !== 'approved' && (
+                      {isEnded && !hasWinner && (
                         <button onClick={()=>handleSetWinner(bid.id)} style={{...S.btn,...S.btnSuccess,padding:'5px 14px',fontSize:12}}>🏆 Set Winner</button>
                       )}
                     </td>
