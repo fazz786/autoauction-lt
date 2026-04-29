@@ -24,15 +24,21 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
   // Real-time WebSocket for live bid updates
   const socket = useAuctionSocket(car.auctionId);
 
-  // Update bid from WebSocket broadcast
+  // Update bid display + bids list from WebSocket broadcast (fires for ALL connected users)
   useEffect(() => {
-    if (socket.currentBid && socket.currentBid > currentBid) {
-      setCurrentBid(socket.currentBid);
-      if (socket.lastBidder && socket.lastBidder !== user?.username) {
-        showToast('New bid: €' + socket.currentBid.toLocaleString() + ' by @' + socket.lastBidder, 'warning');
-      }
+    if (!socket.currentBid) return;
+    // Use functional update to avoid stale-closure on currentBid
+    setCurrentBid(prev => (socket.currentBid > prev ? socket.currentBid : prev));
+    // Refresh bids list so the Bids tab stays live for every watcher, not just the bidder
+    if (car.auctionId) {
+      getBidsForAuction(car.auctionId)
+        .then(data => setBids(Array.isArray(data) ? data : data.results || []))
+        .catch(() => {});
     }
-  }, [socket.currentBid]);
+    if (socket.lastBidder && socket.lastBidder !== user?.username) {
+      showToast('New bid: €' + socket.currentBid.toLocaleString() + ' by @' + socket.lastBidder, 'warning');
+    }
+  }, [socket.currentBid, socket.lastBidder]);
 
   // Load real comments and bids from Django
   useEffect(() => {
