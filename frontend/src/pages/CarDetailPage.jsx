@@ -302,6 +302,11 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
                   This auction has ended
                 </div>
               )}
+              {car.status === 'listed' && (
+                <div style={{background:'#a855f718',border:'1px solid #a855f744',borderRadius:9,padding:16,color:'#a855f7',textAlign:'center',fontFamily:'system-ui'}}>
+                  No auction scheduled yet — contact admin for details
+                </div>
+              )}
               {car.status === 'upcoming' && (
                 <button onClick={() => showToast('You will be notified when this auction goes live!','success')} style={{...S.btn,...S.btnOutline,width:'100%',fontSize:14,padding:13}}>
                   🔔 Notify Me When Live

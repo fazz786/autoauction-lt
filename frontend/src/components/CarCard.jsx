@@ -108,10 +108,10 @@ export default function CarCard({ car, onClick, compact = false }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
             <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'system-ui', marginBottom: 2 }}>
-              CURRENT BID
+              {status === 'listed' ? 'STARTING BID' : 'CURRENT BID'}
             </div>
             <div style={{ fontSize: compact ? 18 : 24, fontWeight: 700, color: '#f59e0b', fontFamily: 'system-ui' }}>
-              €{Number(currentBid).toLocaleString()}
+              €{Number(status === 'listed' ? (car.startingBid || 0) : currentBid).toLocaleString()}
             </div>
           </div>
           {!compact && status === 'live' && highestBidder && (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { S } from '../styles/theme';
-import { getAuctions } from '../api/auctions';
+import { getAuctions, getListings } from '../api/auctions';
 import { apiFetch } from '../api/config';
 import CarCard from '../components/CarCard';
 
@@ -10,13 +10,15 @@ import CarCard from '../components/CarCard';
    how-it-works steps, featured vehicles, and seller CTA.
 ───────────────────────────────────────────────────────────────────────────── */
 export default function HomePage({ setPage, setSelectedCar }) {
-  const [auctions, setAuctions] = useState([]);
+  const [auctions,  setAuctions]  = useState([]);
+  const [allListings, setAllListings] = useState([]);
   const [stats, setStats] = useState({
     active_listings: '—', registered_buyers: '—', traded_this_month: '—', satisfaction_rate: '—',
   });
 
   useEffect(() => {
-    getAuctions().then((data) => setAuctions(data.results || [])).catch(() => {});
+    getAuctions().then(data => setAuctions(Array.isArray(data) ? data : data.results || [])).catch(() => {});
+    getListings().then(data => setAllListings(Array.isArray(data) ? data : data.results || [])).catch(() => {});
     apiFetch('/auctions/stats/').then(setStats).catch(() => {});
   }, []);
 
@@ -153,9 +155,33 @@ export default function HomePage({ setPage, setSelectedCar }) {
           <h2 style={S.sectionTitle}>Recently Listed</h2>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 20 }}>
-          {auctions.filter((a) => a.status !== 'ended').slice(0, 4).map(mapAuction).map((car) => (
-            <CarCard key={car.id} car={car} compact onClick={() => { setSelectedCar(car); setPage('carDetail'); }} />
-          ))}
+          {(() => {
+            // Listings already in an auction — shown via mapAuction
+            const auctionedIds = new Set(auctions.map(a => a.listing?.id).filter(Boolean));
+            const auctionCards = auctions
+              .filter(a => a.status !== 'ended')
+              .slice(0, 4)
+              .map(mapAuction);
+            // Listings WITHOUT an auction
+            const bareCards = allListings
+              .filter(l => !auctionedIds.has(l.id))
+              .slice(0, Math.max(0, 4 - auctionCards.length))
+              .map(l => ({
+                id: `listing-${l.id}`, auctionId: null, listingId: l.id,
+                make: l.make || '', model: l.model || '', year: l.year || '',
+                mileage: l.mileage_display || '', fuel: l.fuel || '',
+                transmission: l.transmission || '', category: l.category || '',
+                condition: l.condition || '', damage: l.damage || '',
+                description: l.description || '',
+                startingBid: parseFloat(l.starting_bid || 0),
+                currentBid: 0, status: 'listed', auctionEnd: null,
+                images: l.images?.map(i => i.image) || [],
+                bids: [], comments: [],
+              }));
+            return [...auctionCards, ...bareCards].map(car => (
+              <CarCard key={car.id} car={car} compact onClick={() => { setSelectedCar(car); setPage('carDetail'); }} />
+            ));
+          })()}
         </div>
       </div>
 

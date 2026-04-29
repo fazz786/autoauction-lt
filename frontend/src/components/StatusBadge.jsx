@@ -7,6 +7,7 @@ export default function StatusBadge({ status }) {
     live:     ['#22c55e', '● LIVE'],
     upcoming: ['#3b82f6', 'UPCOMING'],
     ended:    ['#6b7280', 'ENDED'],
+    listed:   ['#a855f7', 'LISTED'],
   };
   const [color, label] = map[status] || ['#6b7280', 'UNKNOWN'];
 
