@@ -10,8 +10,8 @@ const MEDIA = 'http://localhost:8000';
 const imgUrl = (src) => !src ? null : src.startsWith('http') ? src : `${MEDIA}${src}`;
 
 // How often to poll (ms) — works even when WebSocket/Redis is unavailable
-const BID_POLL_MS     = 3000;
-const COMMENT_POLL_MS = 5000;
+const BID_POLL_MS     = 500;
+const COMMENT_POLL_MS = 500;
 
 export default function CarDetailPage({ car, user, setPage, showToast }) {
   const [bidAmount,  setBidAmount]  = useState('');
