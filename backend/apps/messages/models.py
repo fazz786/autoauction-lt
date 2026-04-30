@@ -22,3 +22,21 @@ class Message(models.Model):
 
     def __str__(self):
         return f'Message from {self.sender}: {self.subject or self.body[:40]}'
+
+
+class SellerInquiry(models.Model):
+    """Contact form from the homepage — no login required."""
+    name         = models.CharField(max_length=120)
+    email        = models.EmailField()
+    phone        = models.CharField(max_length=30, blank=True)
+    vehicle_info = models.CharField(max_length=200, blank=True, help_text='e.g. 2018 BMW X5')
+    message      = models.TextField()
+    is_read      = models.BooleanField(default=False)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'seller_inquiries'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Inquiry from {self.name} <{self.email}>'

@@ -3,15 +3,17 @@ import { S } from '../styles/theme';
 import { getAuctions, getListings } from '../api/auctions';
 import { apiFetch } from '../api/config';
 import CarCard from '../components/CarCard';
+import SellerInquiryModal from '../components/SellerInquiryModal';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HomePage.jsx
    Landing page with hero section, live auctions grid,
    how-it-works steps, featured vehicles, and seller CTA.
 ───────────────────────────────────────────────────────────────────────────── */
-export default function HomePage({ setPage, setSelectedCar }) {
-  const [auctions,  setAuctions]  = useState([]);
-  const [allListings, setAllListings] = useState([]);
+export default function HomePage({ setPage, setSelectedCar, showToast }) {
+  const [auctions,      setAuctions]      = useState([]);
+  const [allListings,   setAllListings]   = useState([]);
+  const [showInquiry,   setShowInquiry]   = useState(false);
   const [stats, setStats] = useState({
     active_listings: '—', registered_buyers: '—', traded_this_month: '—', satisfaction_rate: '—',
   });
@@ -204,10 +206,17 @@ export default function HomePage({ setPage, setSelectedCar }) {
             Register and contact our admin team to list your vehicle within 24 hours.
           </p>
         </div>
-        <button onClick={() => setPage('signup')} style={{ ...S.btn, ...S.btnPrimary, fontSize: 16, padding: '14px 40px', whiteSpace: 'nowrap' }}>
+        <button onClick={() => setShowInquiry(true)} style={{ ...S.btn, ...S.btnPrimary, fontSize: 16, padding: '14px 40px', whiteSpace: 'nowrap' }}>
           Get Started →
         </button>
       </div>
+
+      {showInquiry && (
+        <SellerInquiryModal
+          onClose={() => setShowInquiry(false)}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }

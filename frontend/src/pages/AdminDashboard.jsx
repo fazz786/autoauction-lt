@@ -7,6 +7,7 @@ import { getPendingBids, setWinner } from '../api/bids';
 import { getAllUsers, toggleBlockUser, setUserRole, getMe, updateMe } from '../api/auth';
 import { getChatList, getChat, adminSendMsg } from '../api/chat';
 import { getAuctions, setAuctionStatus } from '../api/auctions';
+import { getSellerInquiries } from '../api/messages';
 import StatusBadge from '../components/StatusBadge';
 
 export default function AdminDashboard({ showToast }) {
@@ -18,6 +19,7 @@ export default function AdminDashboard({ showToast }) {
   const [loading,  setLoading]  = useState(false);
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [editListing,  setEditListing]  = useState(null);
+  const [inquiries,   setInquiries]   = useState([]);
   const [chatConvos,  setChatConvos]  = useState([]);
   const [activeChat,  setActiveChat]  = useState(null);
   const [chatMsgs,    setChatMsgs]    = useState([]);
@@ -50,9 +52,10 @@ export default function AdminDashboard({ showToast }) {
     async function loadAll() {
       setLoading(true);
       try {
-        const [l, u, b, a, me] = await Promise.all([
-          getListings(), getAllUsers(), getPendingBids(), getAuctions(), getMe()
+        const [l, u, b, a, me, inq] = await Promise.all([
+          getListings(), getAllUsers(), getPendingBids(), getAuctions(), getMe(), getSellerInquiries()
         ]);
+        setInquiries(Array.isArray(inq) ? inq : inq.results || []);
         setListings(Array.isArray(l) ? l : l.results || []);
         setUsers(Array.isArray(u) ? u : u.results || []);
         setBids(Array.isArray(b) ? b : b.results || []);
@@ -133,7 +136,7 @@ export default function AdminDashboard({ showToast }) {
           ['Total Listings', listings.length, '#3b82f6'],
           ['Awaiting Winner', auctions.filter(a=>a.status==='ended'&&!a.winner).length, '#f59e0b'],
           ['Users', users.length, '#a855f7'],
-          ['Unread Messages', chatConvos.reduce((s,c)=>s+c.unread,0), '#ef4444'],
+          ['New Inquiries', inquiries.filter(i=>!i.is_read).length, '#ef4444'],
         ].map(([l,v,c]) => (
           <div key={l} style={{ background:'#0d1117', border:'1px solid #1e293b', borderRadius:12, padding:'20px 22px' }}>
             <div style={{ fontSize:11, color:'#64748b', fontFamily:'system-ui', fontWeight:700, marginBottom:8, letterSpacing:1 }}>{l.toUpperCase()}</div>
@@ -143,10 +146,11 @@ export default function AdminDashboard({ showToast }) {
       </div>
 
       <div style={{ display:'flex', borderBottom:'1px solid #1e293b', marginBottom:28 }}>
-        {['overview','listings','auctions','bids','users','messages','profile'].map(t => (
+        {['overview','listings','auctions','bids','users','inquiries','messages','profile'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ background:'none', border:'none', borderBottom:tab===t?'2px solid #f59e0b':'2px solid transparent', padding:'12px 22px', color:tab===t?'#f59e0b':'#64748b', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'system-ui', letterSpacing:0.5, display:'flex', alignItems:'center', gap:7 }}>
             {t.toUpperCase()}
             {t==='bids' && auctions.filter(a=>a.status==='ended'&&!a.winner).length>0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{auctions.filter(a=>a.status==='ended'&&!a.winner).length} need winner</span>}
+            {t==='inquiries' && inquiries.filter(i=>!i.is_read).length>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{inquiries.filter(i=>!i.is_read).length}</span>}
             {t==='messages' && chatConvos.reduce((s,c)=>s+c.unread,0)>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{chatConvos.reduce((s,c)=>s+c.unread,0)}</span>}
           </button>
         ))}
@@ -344,6 +348,45 @@ export default function AdminDashboard({ showToast }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && tab==='inquiries' && (
+        <div className="fade-in">
+          <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>Seller Inquiries</h3>
+          <p style={{color:'#64748b',fontFamily:'system-ui',fontSize:13,marginBottom:24}}>Contact requests from the "Get Started" form on the homepage.</p>
+          {inquiries.length === 0 ? (
+            <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'60px 0'}}>
+              <div style={{fontSize:40,marginBottom:12}}>📭</div>
+              <div>No inquiries yet.</div>
+            </div>
+          ) : (
+            <div style={{display:'grid',gap:16}}>
+              {inquiries.map(inq => (
+                <div key={inq.id} style={{background:'#0d1117',border:`1px solid ${inq.is_read?'#1e293b':'#f59e0b44'}`,borderRadius:13,padding:'20px 24px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:16}}>
+                    <div>
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+                        <span style={{fontSize:16,fontWeight:700,color:'#f1f5f9'}}>{inq.name}</span>
+                        {!inq.is_read && <span style={{background:'#f59e0b22',color:'#f59e0b',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>NEW</span>}
+                      </div>
+                      <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                        <a href={`mailto:${inq.email}`} style={{color:'#3b82f6',fontSize:13,fontFamily:'system-ui',textDecoration:'none'}}>✉ {inq.email}</a>
+                        {inq.phone && <span style={{color:'#64748b',fontSize:13,fontFamily:'system-ui'}}>📞 {inq.phone}</span>}
+                        {inq.vehicle_info && <span style={{color:'#94a3b8',fontSize:13,fontFamily:'system-ui'}}>🚗 {inq.vehicle_info}</span>}
+                      </div>
+                    </div>
+                    <div style={{color:'#475569',fontSize:12,fontFamily:'system-ui',flexShrink:0}}>
+                      {new Date(inq.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                    </div>
+                  </div>
+                  <div style={{background:'#0a0c14',border:'1px solid #1e293b',borderRadius:9,padding:'14px 16px',color:'#94a3b8',fontFamily:'system-ui',fontSize:14,lineHeight:1.65}}>
+                    {inq.message}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

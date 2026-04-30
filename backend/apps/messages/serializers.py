@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Message
+from .models import Message, SellerInquiry
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -14,3 +14,10 @@ class MessageSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['sender'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class SellerInquirySerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = SellerInquiry
+        fields = ['id', 'name', 'email', 'phone', 'vehicle_info', 'message', 'is_read', 'created_at']
+        read_only_fields = ['is_read', 'created_at']
