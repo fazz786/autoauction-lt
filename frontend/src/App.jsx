@@ -10,6 +10,8 @@ import SignupPage from "./pages/SignupPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import MessageWidget from "./components/MessageWidget";
+import InfoPage from "./pages/InfoPage";
+import ReportIssuePage from "./pages/ReportIssuePage";
 import { getSavedToken, getMe } from "./api/auth";
 
 export default function App() {
@@ -57,7 +59,16 @@ export default function App() {
       {page === "dashboard" && user && user.role !== "admin" && <DashboardPage user={user} setPage={navigate} setSelectedCar={setSelectedCar} showToast={showToast} />}
       {page === "dashboard" && !user && navigate("login")}
       {page === "admin"     && user?.role !== "admin" && navigate("home")}
-      <Footer />
+
+      {/* ── Static / info pages ── */}
+      {['howItWorks','helpCenter','faq','gdpr','privacy','terms','cookies','accessibility'].includes(page) && (
+        <InfoPage type={page} setPage={navigate} />
+      )}
+      {page === 'reportIssue' && (
+        <ReportIssuePage setPage={navigate} showToast={showToast} user={user} />
+      )}
+
+      <Footer setPage={navigate} />
       {user && user.role !== 'admin' && <MessageWidget showToast={showToast} />}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
