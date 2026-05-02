@@ -4,6 +4,7 @@ import StatusBadge from '../components/StatusBadge';
 import Countdown from '../components/Countdown';
 import { placeBid, getBidsForAuction } from '../api/bids';
 import { getComments, postComment, likeComment } from '../api/comments';
+import { getAuction } from '../api/auctions';
 import useAuctionSocket from '../hooks/useWebSocket';
 
 const MEDIA = 'http://localhost:8000';
@@ -12,6 +13,7 @@ const imgUrl = (src) => !src ? null : src.startsWith('http') ? src : `${MEDIA}${
 // How often to poll (ms) — works even when WebSocket/Redis is unavailable
 const BID_POLL_MS     = 500;
 const COMMENT_POLL_MS = 500;
+const STATUS_POLL_MS  = 3000;   // auction status check (ended / live)
 
 export default function CarDetailPage({ car, user, setPage, showToast }) {
   const [bidAmount,  setBidAmount]  = useState('');
@@ -19,10 +21,13 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
   const [comment,    setComment]    = useState('');
   const [comments,   setComments]   = useState(car.comments || []);
   const [bids,       setBids]       = useState(car.bids || []);
-  const [imgIdx,     setImgIdx]     = useState(0);
-  const [tab,        setTab]        = useState('details');
-  const [currentBid, setCurrentBid] = useState(car.currentBid || car.startingBid || 0);
-  const [liked,      setLiked]      = useState(false);
+  const [imgIdx,        setImgIdx]        = useState(0);
+  const [tab,           setTab]           = useState('details');
+  const [currentBid,    setCurrentBid]    = useState(car.currentBid || car.startingBid || 0);
+  const [liked,         setLiked]         = useState(false);
+  // Live auction status — updated by polling so the page reacts when auction ends
+  const [auctionStatus, setAuctionStatus] = useState(car.status || 'listed');
+  const [auctionEnd,    setAuctionEnd]    = useState(car.auctionEnd || null);
 
   // Track latest bid count so polling can detect new bids silently
   const knownBidCount = useRef(bids.length);
@@ -70,24 +75,41 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
     } catch (_) {}
   }, [car.auctionId]);
 
+  const refreshStatus = useCallback(async () => {
+    if (!car.auctionId) return;
+    try {
+      const data = await getAuction(car.auctionId);
+      const live = data.status === 'scheduled' ? 'upcoming' : data.status;
+      setAuctionStatus(live);
+      if (data.end_time) setAuctionEnd(new Date(data.end_time).getTime());
+      // Sync current bid from server as source of truth
+      if (data.current_bid != null) {
+        setCurrentBid(prev => Number(data.current_bid) > prev ? Number(data.current_bid) : prev);
+      }
+    } catch (_) {}
+  }, [car.auctionId]); // eslint-disable-line
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     refreshBids(true);
     refreshComments();
+    refreshStatus();
   }, [car.auctionId]); // eslint-disable-line
 
   // ── Polling — runs for ALL users, keeps data live without WebSocket ─────────
   useEffect(() => {
     if (!car.auctionId) return;
 
-    const bidTimer     = setInterval(() => refreshBids(false),  BID_POLL_MS);
-    const commentTimer = setInterval(refreshComments,           COMMENT_POLL_MS);
+    const bidTimer    = setInterval(() => refreshBids(false), BID_POLL_MS);
+    const commentTimer = setInterval(refreshComments,         COMMENT_POLL_MS);
+    const statusTimer = setInterval(refreshStatus,            STATUS_POLL_MS);
 
     return () => {
       clearInterval(bidTimer);
       clearInterval(commentTimer);
+      clearInterval(statusTimer);
     };
-  }, [car.auctionId, refreshBids, refreshComments]);
+  }, [car.auctionId, refreshBids, refreshComments, refreshStatus]);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const minBid = currentBid + 100;
@@ -142,8 +164,8 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
           {/* ── Main image ── */}
           <div style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 10, height: 420, background: '#1e293b', position: 'relative' }}>
             <img src={imgUrl(car.images?.[imgIdx] || car.images?.[0])} alt={car.make} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', top: 16, left: 16 }}><StatusBadge status={car.status} /></div>
-            {car.status === 'live' && (
+            <div style={{ position: 'absolute', top: 16, left: 16 }}><StatusBadge status={auctionStatus} /></div>
+            {auctionStatus === 'live' && (
               <div style={{ position: 'absolute', top: 16, right: 60, background: '#22c55e22', border: '1px solid #22c55e44', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#22c55e', fontFamily: 'system-ui' }}>
                 {socket.connected ? '● Live' : '○ Live'}
               </div>
@@ -258,10 +280,10 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
               <h2 style={{fontSize:22,fontWeight:700,marginBottom:4}}>{car.year} {car.make} {car.model}</h2>
               <div style={{color:'#64748b',fontSize:14,fontFamily:'system-ui',marginBottom:24}}>{car.mileage} · {car.fuel} · {car.category}</div>
 
-              {car.status === 'live' && (
+              {auctionStatus === 'live' && (
                 <div style={{background:'#f59e0b09',border:'1px solid #f59e0b33',borderRadius:11,padding:'16px 20px',marginBottom:24,textAlign:'center'}}>
                   <div style={{fontSize:11,color:'#64748b',fontFamily:'system-ui',marginBottom:5,letterSpacing:1}}>AUCTION ENDS IN</div>
-                  <Countdown endTime={car.auctionEnd} size="lg"/>
+                  <Countdown endTime={auctionEnd} size="lg"/>
                 </div>
               )}
 
@@ -276,7 +298,7 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
                 </div>
               </div>
 
-              {car.status === 'live' && (
+              {auctionStatus === 'live' && (
                 <>
                   <div style={{marginBottom:14}}>
                     <label style={S.label}>Your Bid (min €{minBid.toLocaleString()})</label>
@@ -297,17 +319,17 @@ export default function CarDetailPage({ car, user, setPage, showToast }) {
                 </>
               )}
 
-              {car.status === 'ended' && (
+              {auctionStatus === 'ended' && (
                 <div style={{background:'#6b728018',border:'1px solid #6b728044',borderRadius:9,padding:16,color:'#6b7280',textAlign:'center',fontFamily:'system-ui'}}>
                   This auction has ended
                 </div>
               )}
-              {car.status === 'listed' && (
+              {auctionStatus === 'listed' && (
                 <div style={{background:'#a855f718',border:'1px solid #a855f744',borderRadius:9,padding:16,color:'#a855f7',textAlign:'center',fontFamily:'system-ui'}}>
                   No auction scheduled yet — contact admin for details
                 </div>
               )}
-              {car.status === 'upcoming' && (
+              {auctionStatus === 'upcoming' && (
                 <button onClick={() => showToast('You will be notified when this auction goes live!','success')} style={{...S.btn,...S.btnOutline,width:'100%',fontSize:14,padding:13}}>
                   🔔 Notify Me When Live
                 </button>
