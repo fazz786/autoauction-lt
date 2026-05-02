@@ -51,7 +51,8 @@ export default function App() {
     <div style={{ background: "#080a10", minHeight: "100vh", color: "#e2e8f0", fontFamily: "Georgia, serif" }}>
       <Nav page={page} setPage={navigate} user={user} setUser={setUser} />
       {page === "home"      && <HomePage setPage={navigate} setSelectedCar={setSelectedCar} showToast={showToast} />}
-      {page === "auctions"  && <AuctionsPage setPage={navigate} setSelectedCar={setSelectedCar} />}
+      {page === "liveAuctions" && <AuctionsPage setPage={navigate} setSelectedCar={setSelectedCar} initialFilter="live" />}
+      {page === "auctions"     && <AuctionsPage setPage={navigate} setSelectedCar={setSelectedCar} />}
       {page === "carDetail" && selectedCar && <CarDetailPage car={selectedCar} user={user} setPage={navigate} showToast={showToast} />}
       {page === "login"     && <LoginPage setPage={navigate} setUser={setUser} showToast={showToast} />}
       {page === "signup"    && <SignupPage setPage={navigate} setUser={setUser} showToast={showToast} />}

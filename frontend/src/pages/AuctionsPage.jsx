@@ -3,14 +3,22 @@ import { S } from '../styles/theme';
 import { getAuctions, getListings } from '../api/auctions';
 import CarCard from '../components/CarCard';
 
-export default function AuctionsPage({ setPage, setSelectedCar }) {
+export default function AuctionsPage({ setPage, setSelectedCar, initialFilter = 'all' }) {
   const [allCars,  setAllCars]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
-  const [filter,   setFilter]   = useState('all');
+  const [filter,   setFilter]   = useState(initialFilter);
   const [search,   setSearch]   = useState('');
   const [category, setCategory] = useState('All');
-  const [sort,     setSort]     = useState('newest');
+  const [sort,     setSort]     = useState(initialFilter === 'live' ? 'ending' : 'newest');
+
+  // When navigating between Live Auctions ↔ All Cars, reset filters to match
+  useEffect(() => {
+    setFilter(initialFilter);
+    setSearch('');
+    setCategory('All');
+    setSort(initialFilter === 'live' ? 'ending' : 'newest');
+  }, [initialFilter]);
 
   useEffect(() => {
     async function load() {
@@ -106,10 +114,25 @@ export default function AuctionsPage({ setPage, setSelectedCar }) {
   return (
     <div style={S.page} className="fade-in">
       <div style={{ marginBottom: 36 }}>
-        <h1 style={S.sectionTitle}>Browse Vehicles</h1>
-        <p style={{ color: '#64748b', fontFamily: 'system-ui', fontSize: 15 }}>
-          Live auctions, upcoming listings, and vehicles available for sale.
-        </p>
+        {initialFilter === 'live' ? (
+          <>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
+              <span style={{ width:10, height:10, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 8px #22c55e', display:'inline-block', animation:'pulse 2s infinite' }} />
+              <span style={{ color:'#22c55e', fontSize:11, fontWeight:700, fontFamily:'system-ui', letterSpacing:3 }}>LIVE NOW</span>
+            </div>
+            <h1 style={S.sectionTitle}>Live Auctions</h1>
+            <p style={{ color: '#64748b', fontFamily: 'system-ui', fontSize: 15 }}>
+              Active auctions happening right now. Place your bid before the clock runs out.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 style={S.sectionTitle}>All Cars</h1>
+            <p style={{ color: '#64748b', fontFamily: 'system-ui', fontSize: 15 }}>
+              Browse every vehicle — live auctions, upcoming listings, and cars available for sale.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Filters */}

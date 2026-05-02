@@ -30,13 +30,23 @@ export default function Nav({ page, setPage, user, setUser }) {
 
       {/* Navigation links */}
       <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
-        {[['home', 'Home'], ['auctions', 'Auctions']].map(([p, label]) => (
+        {[['home', 'Home'], ['liveAuctions', 'Live Auctions'], ['auctions', 'All Cars']].map(([p, label]) => (
           <span
             key={p}
             onClick={() => setPage(p)}
             style={{ ...S.navLink, ...(page === p ? S.navLinkActive : {}) }}
           >
             {label}
+            {p === 'liveAuctions' && (
+              <span style={{
+                display: 'inline-block', marginLeft: 6,
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#22c55e',
+                boxShadow: '0 0 6px #22c55e',
+                verticalAlign: 'middle',
+                animation: 'pulse 2s infinite',
+              }} />
+            )}
           </span>
         ))}
         {user && (
