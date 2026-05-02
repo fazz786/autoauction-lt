@@ -39,6 +39,21 @@ export default function AdminDashboard({ showToast }) {
     } catch (_) {}
   };
 
+  const fetchInquiries = async () => {
+    try {
+      const data = await getSellerInquiries();
+      const list = Array.isArray(data) ? data : data.results || [];
+      setInquiries(prev => {
+        // Show toast if new inquiry arrived while admin is not on inquiries tab
+        if (list.length > prev.length) {
+          const newest = list[0];
+          showToast(`New inquiry from ${newest.name}`, 'info');
+        }
+        return list;
+      });
+    } catch (_) {}
+  };
+
   const fetchActiveChatMsgs = async (userId) => {
     try {
       const data = await getChat(userId);
@@ -70,7 +85,8 @@ export default function AdminDashboard({ showToast }) {
     }
     loadAll();
     pollRef.current = setInterval(fetchChatList, 4000);
-    return () => clearInterval(pollRef.current);
+    const inquiryPoll = setInterval(fetchInquiries, 3000);
+    return () => { clearInterval(pollRef.current); clearInterval(inquiryPoll); };
   }, []);
 
   const handleSetWinner = async (bidId) => {
