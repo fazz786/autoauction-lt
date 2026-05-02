@@ -6,7 +6,7 @@ import { getListings, deleteListing } from '../api/auctions';
 import { getPendingBids, setWinner } from '../api/bids';
 import { getAllUsers, toggleBlockUser, setUserRole, getMe, updateMe } from '../api/auth';
 import { getChatList, getChat, adminSendMsg } from '../api/chat';
-import { getAuctions, setAuctionStatus } from '../api/auctions';
+import { getAuctions, setAuctionStatus, createAuction } from '../api/auctions';
 import { getSellerInquiries } from '../api/messages';
 import StatusBadge from '../components/StatusBadge';
 
@@ -19,7 +19,12 @@ export default function AdminDashboard({ showToast }) {
   const [loading,  setLoading]  = useState(false);
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [editListing,  setEditListing]  = useState(null);
-  const [inquiries,   setInquiries]   = useState([]);
+  const [inquiries,      setInquiries]      = useState([]);
+  // Auction creation — tracks which listing's form is open + its field values
+  const [auctionForm,    setAuctionForm]    = useState(null); // { listingId, start, end }
+  const [auctionCreating,setAuctionCreating]= useState(false);
+  // Bids tab — which auction groups are expanded
+  const [expandedBidAuctions, setExpandedBidAuctions] = useState(new Set());
   const [chatConvos,  setChatConvos]  = useState([]);
   const [activeChat,  setActiveChat]  = useState(null);
   const [chatMsgs,    setChatMsgs]    = useState([]);
@@ -100,6 +105,32 @@ export default function AdminDashboard({ showToast }) {
       showToast('Winner set! Auction ended.', 'success');
     } catch(e) { showToast(e.message,'error'); }
   };
+  const handleCreateAuction = async () => {
+    if (!auctionForm?.listingId || !auctionForm.start || !auctionForm.end) {
+      showToast('Fill in start and end date/time.', 'error'); return;
+    }
+    if (new Date(auctionForm.end) <= new Date(auctionForm.start)) {
+      showToast('End time must be after start time.', 'error'); return;
+    }
+    setAuctionCreating(true);
+    try {
+      await createAuction({ listing_id: auctionForm.listingId, start_time: auctionForm.start, end_time: auctionForm.end, status: 'scheduled' });
+      showToast('Auction scheduled!', 'success');
+      setAuctionForm(null);
+      const a = await getAuctions();
+      setAuctions(Array.isArray(a) ? a : a.results || []);
+    } catch(e) { showToast(e.message, 'error'); }
+    finally { setAuctionCreating(false); }
+  };
+
+  const toggleBidGroup = (auctionId) => {
+    setExpandedBidAuctions(prev => {
+      const next = new Set(prev);
+      next.has(auctionId) ? next.delete(auctionId) : next.add(auctionId);
+      return next;
+    });
+  };
+
   const handleToggleUser = async (id) => {
     try { const r = await toggleBlockUser(id); setUsers(us => us.map(u => u.id===id?{...u,is_blocked:r.is_blocked}:u)); }
     catch(e) { showToast(e.message,'error'); }
@@ -241,7 +272,77 @@ export default function AdminDashboard({ showToast }) {
 
       {!loading && tab==='auctions' && (
         <div className="fade-in">
-          <h3 style={{fontSize:17,fontWeight:700,marginBottom:20}}>Auction Management ({auctions.length})</h3>
+
+          {/* ── Listings without an auction ── */}
+          {(() => {
+            const auctionedIds = new Set(auctions.map(a => a.listing?.id).filter(Boolean));
+            const unassigned   = listings.filter(l => !auctionedIds.has(l.id));
+            if (unassigned.length === 0) return null;
+            return (
+              <div style={{marginBottom:36}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+                  <h3 style={{fontSize:16,fontWeight:700,margin:0}}>Listings without an Auction</h3>
+                  <span style={{background:'#f59e0b22',color:'#f59e0b',fontSize:11,fontWeight:700,padding:'2px 10px',borderRadius:20,letterSpacing:0.5}}>{unassigned.length} pending</span>
+                </div>
+                <div style={{display:'grid',gap:12}}>
+                  {unassigned.map(l => {
+                    const isOpen = auctionForm?.listingId === l.id;
+                    return (
+                      <div key={l.id} style={{background:'#0d1117',border:`1px solid ${isOpen?'#f59e0b55':'#1e293b'}`,borderRadius:13,padding:'18px 22px',transition:'border-color 0.2s'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:16}}>
+                          <div>
+                            <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{l.year} {l.make} {l.model}</div>
+                            <div style={{color:'#64748b',fontSize:12,fontFamily:'system-ui'}}>
+                              {l.category} · Starting bid: <span style={{color:'#f59e0b',fontWeight:600}}>€{Number(l.starting_bid).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setAuctionForm(isOpen ? null : { listingId: l.id, start:'', end:'' })}
+                            style={{...S.btn,...(isOpen?S.btnGhost:S.btnPrimary),padding:'7px 16px',fontSize:13,flexShrink:0}}
+                          >
+                            {isOpen ? '✕ Cancel' : '⚡ Setup Auction'}
+                          </button>
+                        </div>
+
+                        {isOpen && (
+                          <div style={{marginTop:18,paddingTop:18,borderTop:'1px solid #1e293b22',display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:12,alignItems:'end'}}>
+                            <div>
+                              <label style={{...S.label,fontSize:11}}>Start Date &amp; Time</label>
+                              <input
+                                type="datetime-local"
+                                value={auctionForm.start}
+                                onChange={e => setAuctionForm(f => ({...f, start: e.target.value}))}
+                                style={{...S.input,fontSize:13}}
+                              />
+                            </div>
+                            <div>
+                              <label style={{...S.label,fontSize:11}}>End Date &amp; Time</label>
+                              <input
+                                type="datetime-local"
+                                value={auctionForm.end}
+                                onChange={e => setAuctionForm(f => ({...f, end: e.target.value}))}
+                                style={{...S.input,fontSize:13}}
+                              />
+                            </div>
+                            <button
+                              onClick={handleCreateAuction}
+                              disabled={auctionCreating}
+                              style={{...S.btn,...S.btnSuccess,padding:'10px 20px',fontSize:13,opacity:auctionCreating?0.6:1}}
+                            >
+                              {auctionCreating ? 'Creating…' : '✓ Create Auction'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Existing auctions table ── */}
+          <h3 style={{fontSize:16,fontWeight:700,marginBottom:16}}>All Auctions ({auctions.length})</h3>
           <table style={S.table}>
             <thead>
               <tr>
@@ -293,47 +394,126 @@ export default function AdminDashboard({ showToast }) {
               })}
             </tbody>
           </table>
-          {auctions.length === 0 && <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'40px 0'}}>No auctions yet. Create one from the Listings tab.</div>}
+          {auctions.length === 0 && <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'30px 0'}}>No auctions yet. Use the section above to create one.</div>}
         </div>
       )}
 
       {!loading && tab==='bids' && (
         <div className="fade-in">
-          <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>All Bids</h3>
-          <p style={{color:'#64748b',fontFamily:'system-ui',fontSize:13,marginBottom:20}}>Bids appear instantly. End the auction first, then select a winner from the bids below.</p>
-          <table style={S.table}>
-            <thead><tr><th style={S.th}>Auction</th><th style={S.th}>Bidder</th><th style={S.th}>Amount</th><th style={S.th}>Time</th><th style={S.th}>Status</th><th style={S.th}>Action</th></tr></thead>
-            <tbody>
-              {bids.map(bid => {
-                const auctionForBid = auctions.find(a => a.id === bid.auction);
-                const isEnded      = auctionForBid?.status === 'ended';
-                const hasWinner    = !!auctionForBid?.winner;
-                return (
-                  <tr key={bid.id}>
-                    <td style={{...S.td,fontWeight:600,fontSize:12}}>
-                      {auctionForBid ? `${auctionForBid.listing?.year} ${auctionForBid.listing?.make} ${auctionForBid.listing?.model}` : `#${bid.auction}`}
-                      {isEnded && <span style={{marginLeft:6,fontSize:10,color:'#64748b',fontFamily:'system-ui'}}>[ENDED]</span>}
-                    </td>
-                    <td style={{...S.td,color:'#94a3b8'}}>@{bid.bidder_name}</td>
-                    <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui'}}>€{Number(bid.amount).toLocaleString()}</td>
-                    <td style={{...S.td,color:'#64748b',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
-                    <td style={S.td}>
-                      {bid.status === 'rejected' && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
-                      {bid.status === 'approved' && hasWinner  && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
-                      {bid.status === 'approved' && !hasWinner && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
-                      {bid.status === 'pending'  && <span style={{color:'#64748b',fontSize:12}}>—</span>}
-                    </td>
-                    <td style={S.td}>
-                      {isEnded && !hasWinner && (
-                        <button onClick={()=>handleSetWinner(bid.id)} style={{...S.btn,...S.btnSuccess,padding:'5px 14px',fontSize:12}}>🏆 Set Winner</button>
+          <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>Bids by Vehicle</h3>
+          <p style={{color:'#64748b',fontFamily:'system-ui',fontSize:13,marginBottom:24}}>
+            Bids are grouped by vehicle. End an auction first, then click <strong style={{color:'#f1f5f9'}}>Set Winner</strong> on the highest bid.
+          </p>
+
+          {auctions.length === 0 && (
+            <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'60px 0'}}>
+              <div style={{fontSize:36,marginBottom:12}}>🏷</div>
+              <div>No auctions yet.</div>
+            </div>
+          )}
+
+          <div style={{display:'grid',gap:16}}>
+            {auctions.map(a => {
+              const auctionBids = [...bids.filter(b => b.auction === a.id)].sort((x,y) => Number(y.amount) - Number(x.amount));
+              const isEnded     = a.status === 'ended';
+              const hasWinner   = !!a.winner;
+              const isExpanded  = expandedBidAuctions.has(a.id);
+              const topBid      = auctionBids[0];
+              const statusColor = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
+              const needsWinner = isEnded && !hasWinner && auctionBids.length > 0;
+
+              return (
+                <div key={a.id} style={{background:'#0d1117',border:`1px solid ${needsWinner?'#f59e0b55':'#1e293b'}`,borderRadius:14,overflow:'hidden',transition:'border-color 0.2s'}}>
+                  {/* Vehicle header row */}
+                  <div
+                    onClick={() => toggleBidGroup(a.id)}
+                    style={{display:'flex',alignItems:'center',gap:16,padding:'18px 22px',cursor:'pointer',userSelect:'none'}}
+                  >
+                    {/* Expand chevron */}
+                    <span style={{color:'#475569',fontSize:14,transition:'transform 0.2s',display:'inline-block',transform:isExpanded?'rotate(90deg)':'rotate(0deg)'}}>▶</span>
+
+                    {/* Vehicle name */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:15,marginBottom:3}}>
+                        {a.listing?.year} {a.listing?.make} {a.listing?.model}
+                        {needsWinner && <span style={{marginLeft:10,background:'#f59e0b22',color:'#f59e0b',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>NEEDS WINNER</span>}
+                        {hasWinner   && <span style={{marginLeft:10,background:'#22c55e22',color:'#22c55e',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>WINNER SET ✓</span>}
+                      </div>
+                      <div style={{color:'#64748b',fontSize:12,fontFamily:'system-ui'}}>
+                        Ends: {new Date(a.end_time).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                        &nbsp;·&nbsp;{auctionBids.length} bid{auctionBids.length!==1?'s':''}
+                      </div>
+                    </div>
+
+                    {/* Status badge */}
+                    <span style={{color:statusColor,fontSize:11,fontWeight:700,fontFamily:'system-ui',letterSpacing:1,flexShrink:0}}>
+                      {a.status?.toUpperCase()}
+                    </span>
+
+                    {/* Highest bid */}
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{color:'#94a3b8',fontSize:10,fontFamily:'system-ui',marginBottom:2}}>HIGHEST BID</div>
+                      <div style={{color:'#f59e0b',fontWeight:700,fontSize:17,fontFamily:'system-ui'}}>
+                        €{Number(topBid?.amount || a.listing?.starting_bid || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded bid list */}
+                  {isExpanded && (
+                    <div style={{borderTop:'1px solid #1e293b'}}>
+                      {auctionBids.length === 0 ? (
+                        <div style={{color:'#475569',fontFamily:'system-ui',fontSize:13,padding:'20px 24px',textAlign:'center'}}>No bids placed yet.</div>
+                      ) : (
+                        <table style={{...S.table,margin:0,borderRadius:0}}>
+                          <thead>
+                            <tr>
+                              <th style={{...S.th,paddingLeft:24}}>#</th>
+                              <th style={S.th}>Bidder</th>
+                              <th style={S.th}>Amount</th>
+                              <th style={S.th}>Placed</th>
+                              <th style={S.th}>Status</th>
+                              <th style={S.th}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {auctionBids.map((bid, idx) => {
+                              const isWinnerBid = bid.status === 'approved' && hasWinner;
+                              return (
+                                <tr key={bid.id} style={{background:isWinnerBid?'#052e0a':idx===0&&needsWinner?'#1a1400':'transparent'}}>
+                                  <td style={{...S.td,paddingLeft:24,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>#{idx+1}</td>
+                                  <td style={{...S.td,fontWeight:600}}>@{bid.bidder_name}</td>
+                                  <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui',fontSize:15}}>€{Number(bid.amount).toLocaleString()}</td>
+                                  <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+                                  <td style={S.td}>
+                                    {bid.status === 'rejected' && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
+                                    {isWinnerBid                && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
+                                    {bid.status === 'approved' && !hasWinner && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
+                                    {bid.status === 'pending'  && <span style={{color:'#64748b',fontSize:12}}>—</span>}
+                                  </td>
+                                  <td style={S.td}>
+                                    {isEnded && !hasWinner && (
+                                      <button onClick={() => handleSetWinner(bid.id)} style={{...S.btn,...S.btnSuccess,padding:'5px 14px',fontSize:12}}>
+                                        🏆 Set Winner
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {bids.length === 0 && <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'40px 0'}}>No bids yet.</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {bids.length === 0 && auctions.length > 0 && (
+            <div style={{color:'#64748b',fontFamily:'system-ui',textAlign:'center',padding:'20px 0'}}>No bids placed yet on any auction.</div>
+          )}
         </div>
       )}
 
