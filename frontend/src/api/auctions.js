@@ -114,11 +114,11 @@ export async function deleteListing(id) {
 }
 
 /**
- * Admin: update an auction (start/end time, status).
+ * Admin: partially update an auction (start/end time, status).
  */
 export async function updateAuction(id, data) {
   return apiFetch(`/auctions/${id}/`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify(data),
   });
 }

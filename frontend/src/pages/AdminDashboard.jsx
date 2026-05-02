@@ -6,7 +6,7 @@ import { getListings, deleteListing } from '../api/auctions';
 import { getPendingBids, setWinner } from '../api/bids';
 import { getAllUsers, toggleBlockUser, setUserRole, getMe, updateMe } from '../api/auth';
 import { getChatList, getChat, adminSendMsg } from '../api/chat';
-import { getAuctions, setAuctionStatus, createAuction } from '../api/auctions';
+import { getAuctions, setAuctionStatus, createAuction, updateAuction } from '../api/auctions';
 import { getSellerInquiries } from '../api/messages';
 import StatusBadge from '../components/StatusBadge';
 
@@ -23,6 +23,9 @@ export default function AdminDashboard({ showToast }) {
   // Auction creation — tracks which listing's form is open + its field values
   const [auctionForm,    setAuctionForm]    = useState(null); // { listingId, start, end }
   const [auctionCreating,setAuctionCreating]= useState(false);
+  // Auction edit (reschedule ended/cancelled auctions)
+  const [editAuctionForm,    setEditAuctionForm]    = useState(null); // { auctionId, start, end }
+  const [auctionUpdating,    setAuctionUpdating]    = useState(false);
   // Bids tab — which auction groups are expanded
   const [expandedBidAuctions, setExpandedBidAuctions] = useState(new Set());
   const [chatConvos,  setChatConvos]  = useState([]);
@@ -121,6 +124,27 @@ export default function AdminDashboard({ showToast }) {
       setAuctions(Array.isArray(a) ? a : a.results || []);
     } catch(e) { showToast(e.message, 'error'); }
     finally { setAuctionCreating(false); }
+  };
+
+  const handleRescheduleAuction = async () => {
+    if (!editAuctionForm?.auctionId || !editAuctionForm.start || !editAuctionForm.end) {
+      showToast('Fill in both start and end date/time.', 'error'); return;
+    }
+    if (new Date(editAuctionForm.end) <= new Date(editAuctionForm.start)) {
+      showToast('End time must be after start time.', 'error'); return;
+    }
+    setAuctionUpdating(true);
+    try {
+      const updated = await updateAuction(editAuctionForm.auctionId, {
+        start_time: editAuctionForm.start,
+        end_time:   editAuctionForm.end,
+        status:     'scheduled',
+      });
+      setAuctions(prev => prev.map(a => a.id === editAuctionForm.auctionId ? { ...a, ...updated } : a));
+      setEditAuctionForm(null);
+      showToast('Auction rescheduled!', 'success');
+    } catch(e) { showToast(e.message, 'error'); }
+    finally { setAuctionUpdating(false); }
   };
 
   const toggleBidGroup = (auctionId) => {
@@ -356,40 +380,93 @@ export default function AdminDashboard({ showToast }) {
             </thead>
             <tbody>
               {auctions.map(a => {
-                const statusColor = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
+                const statusColor   = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
+                const isEditOpen    = editAuctionForm?.auctionId === a.id;
+                const canReschedule = a.status === 'ended' || a.status === 'cancelled';
+
+                // Helper: format a datetime string for datetime-local input
+                const toInputVal = (iso) => {
+                  if (!iso) return '';
+                  const d = new Date(iso);
+                  const pad = n => String(n).padStart(2,'0');
+                  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
+
                 return (
-                  <tr key={a.id}>
-                    <td style={{...S.td,fontWeight:600}}>{a.listing?.year} {a.listing?.make} {a.listing?.model}</td>
-                    <td style={S.td}><span style={{color:statusColor,fontSize:12,fontWeight:700}}>{a.status?.toUpperCase()}</span></td>
-                    <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui'}}>€{Number(a.current_bid||a.listing?.starting_bid||0).toLocaleString()}</td>
-                    <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(a.start_time).toLocaleString()}</td>
-                    <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(a.end_time).toLocaleString()}</td>
-                    <td style={S.td}>
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                        {a.status === 'scheduled' && (
-                          <button onClick={async () => {
-                            try { await setAuctionStatus(a.id,'live'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'live'}:x)); showToast('Auction is now LIVE!','success'); }
-                            catch(e) { showToast(e.message,'error'); }
-                          }} style={{...S.btn,...S.btnSuccess,padding:'5px 12px',fontSize:12}}>▶ Go Live</button>
-                        )}
-                        {a.status === 'live' && (
-                          <button onClick={async () => {
-                            try { await setAuctionStatus(a.id,'ended'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'ended'}:x)); showToast('Auction ended.','warning'); }
-                            catch(e) { showToast(e.message,'error'); }
-                          }} style={{...S.btn,...S.btnDanger,padding:'5px 12px',fontSize:12}}>■ End</button>
-                        )}
-                        {(a.status === 'scheduled' || a.status === 'live') && (
-                          <button onClick={async () => {
-                            try { await setAuctionStatus(a.id,'cancelled'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'cancelled'}:x)); showToast('Auction cancelled.','warning'); }
-                            catch(e) { showToast(e.message,'error'); }
-                          }} style={{...S.btn,...S.btnGhost,padding:'5px 12px',fontSize:12}}>✕ Cancel</button>
-                        )}
-                        {(a.status === 'ended' || a.status === 'cancelled') && (
-                          <span style={{color:'#334155',fontSize:12,fontFamily:'system-ui'}}>—</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={a.id}>
+                      <td style={{...S.td,fontWeight:600}}>{a.listing?.year} {a.listing?.make} {a.listing?.model}</td>
+                      <td style={S.td}><span style={{color:statusColor,fontSize:12,fontWeight:700}}>{a.status?.toUpperCase()}</span></td>
+                      <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui'}}>€{Number(a.current_bid||a.listing?.starting_bid||0).toLocaleString()}</td>
+                      <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(a.start_time).toLocaleString()}</td>
+                      <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(a.end_time).toLocaleString()}</td>
+                      <td style={S.td}>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                          {a.status === 'scheduled' && (
+                            <button onClick={async () => {
+                              try { await setAuctionStatus(a.id,'live'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'live'}:x)); showToast('Auction is now LIVE!','success'); }
+                              catch(e) { showToast(e.message,'error'); }
+                            }} style={{...S.btn,...S.btnSuccess,padding:'5px 12px',fontSize:12}}>▶ Go Live</button>
+                          )}
+                          {a.status === 'live' && (
+                            <button onClick={async () => {
+                              try { await setAuctionStatus(a.id,'ended'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'ended'}:x)); showToast('Auction ended.','warning'); }
+                              catch(e) { showToast(e.message,'error'); }
+                            }} style={{...S.btn,...S.btnDanger,padding:'5px 12px',fontSize:12}}>■ End</button>
+                          )}
+                          {(a.status === 'scheduled' || a.status === 'live') && (
+                            <button onClick={async () => {
+                              try { await setAuctionStatus(a.id,'cancelled'); setAuctions(prev=>prev.map(x=>x.id===a.id?{...x,status:'cancelled'}:x)); showToast('Auction cancelled.','warning'); }
+                              catch(e) { showToast(e.message,'error'); }
+                            }} style={{...S.btn,...S.btnGhost,padding:'5px 12px',fontSize:12}}>✕ Cancel</button>
+                          )}
+                          {canReschedule && (
+                            <button
+                              onClick={() => setEditAuctionForm(isEditOpen ? null : { auctionId: a.id, start: toInputVal(a.start_time), end: toInputVal(a.end_time) })}
+                              style={{...S.btn,...(isEditOpen ? S.btnGhost : S.btnPrimary),padding:'5px 12px',fontSize:12}}
+                            >
+                              {isEditOpen ? '✕ Cancel' : '✏ Reschedule'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Inline reschedule form row */}
+                    {isEditOpen && (
+                      <tr key={`edit-${a.id}`}>
+                        <td colSpan={6} style={{padding:'0 0 2px 0',background:'transparent'}}>
+                          <div style={{margin:'0 0 8px 0',background:'#0a0e1a',border:'1px solid #f59e0b33',borderRadius:10,padding:'18px 22px',display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:14,alignItems:'end'}}>
+                            <div>
+                              <label style={{...S.label,fontSize:11}}>New Start Date &amp; Time</label>
+                              <input
+                                type="datetime-local"
+                                value={editAuctionForm.start}
+                                onChange={e => setEditAuctionForm(f => ({...f, start: e.target.value}))}
+                                style={{...S.input,fontSize:13}}
+                              />
+                            </div>
+                            <div>
+                              <label style={{...S.label,fontSize:11}}>New End Date &amp; Time</label>
+                              <input
+                                type="datetime-local"
+                                value={editAuctionForm.end}
+                                onChange={e => setEditAuctionForm(f => ({...f, end: e.target.value}))}
+                                style={{...S.input,fontSize:13}}
+                              />
+                            </div>
+                            <button
+                              onClick={handleRescheduleAuction}
+                              disabled={auctionUpdating}
+                              style={{...S.btn,...S.btnSuccess,padding:'10px 20px',fontSize:13,opacity:auctionUpdating?0.6:1}}
+                            >
+                              {auctionUpdating ? 'Saving…' : '↺ Reschedule'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>
