@@ -4,6 +4,7 @@ import { getAuctions, getListings } from '../api/auctions';
 import { apiFetch } from '../api/config';
 import CarCard from '../components/CarCard';
 import SellerInquiryModal from '../components/SellerInquiryModal';
+import LocationMap from '../components/LocationMap';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HomePage.jsx
@@ -210,6 +211,8 @@ export default function HomePage({ setPage, setSelectedCar, showToast }) {
           Get Started →
         </button>
       </div>
+
+      <LocationMap />
 
       {showInquiry && (
         <SellerInquiryModal
