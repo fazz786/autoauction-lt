@@ -35,5 +35,5 @@ class BidCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['bidder'] = self.context['request'].user
-        validated_data['status'] = 'approved'
+        validated_data['status'] = 'pending'   # admin approves manually
         return super().create(validated_data)

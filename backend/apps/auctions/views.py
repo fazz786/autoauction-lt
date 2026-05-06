@@ -55,7 +55,7 @@ class AuctionDetailView(generics.RetrieveUpdateDestroyAPIView):
         if new_status == 'scheduled':
             instance.winner = None
             instance.save(update_fields=['winner'])
-            instance.bids.all().update(status='approved')
+            instance.bids.all().update(status='pending')  # reset to pending so admin re-approves
 
 
 class StatsView(APIView):

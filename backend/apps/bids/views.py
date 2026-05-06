@@ -74,7 +74,14 @@ class PendingBidsView(generics.ListAPIView):
 
 
 class SetWinnerView(APIView):
-    """POST /api/bids/<id>/winner/ — admin: mark this bid's bidder as auction winner"""
+    """
+    POST /api/bids/<id>/winner/
+    Admin approves this bid as the winner.
+    - Works on live, scheduled, or ended auctions
+    - Marks auction as ended + sets winner
+    - Approves this bid, rejects all others in the same auction
+    - Only one winner allowed per auction
+    """
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, pk):
@@ -84,18 +91,14 @@ class SetWinnerView(APIView):
             return Response({'detail': 'Bid not found.'}, status=404)
 
         auction = bid.auction
-        if auction.status != 'ended':
-            return Response(
-                {'detail': 'The auction must be ended before selecting a winner. End the auction first from the Auctions tab.'},
-                status=400
-            )
         if auction.winner:
             return Response({'detail': 'A winner has already been selected for this auction.'}, status=400)
 
+        # Approve this bid, reject all others, end the auction
         auction.winner = bid.bidder
-        auction.save(update_fields=['winner'])
+        auction.status = 'ended'
+        auction.save(update_fields=['winner', 'status'])
 
-        # Mark winning bid, clear others
         auction.bids.exclude(pk=bid.pk).update(status='rejected')
         bid.status      = 'approved'
         bid.reviewed_at = timezone.now()
@@ -103,3 +106,24 @@ class SetWinnerView(APIView):
         bid.save()
 
         return Response({'detail': f'Winner set to @{bid.bidder.username}', 'auction_id': auction.id})
+
+
+class RejectBidView(APIView):
+    """POST /api/bids/<id>/reject/ — admin: reject a single pending bid"""
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, pk):
+        try:
+            bid = Bid.objects.select_related('auction', 'bidder').get(pk=pk)
+        except Bid.DoesNotExist:
+            return Response({'detail': 'Bid not found.'}, status=404)
+
+        if bid.status == 'approved':
+            return Response({'detail': 'Cannot reject the winning bid.'}, status=400)
+
+        bid.status      = 'rejected'
+        bid.reviewed_at = timezone.now()
+        bid.reviewed_by = request.user
+        bid.save()
+
+        return Response({'detail': f'Bid by @{bid.bidder.username} rejected.'})

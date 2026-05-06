@@ -36,8 +36,15 @@ export async function getPendingBids() {
 }
 
 /**
- * Admin: mark this bid as the winner — ends the auction.
+ * Admin: approve this bid as the winner — ends the auction.
  */
 export async function setWinner(bidId) {
   return apiFetch(`/bids/${bidId}/winner/`, { method: 'POST' });
+}
+
+/**
+ * Admin: reject a single pending bid.
+ */
+export async function rejectBid(bidId) {
+  return apiFetch(`/bids/${bidId}/reject/`, { method: 'POST' });
 }

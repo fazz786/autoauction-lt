@@ -3,7 +3,7 @@ import { S } from '../styles/theme';
 import AddListingPage from './AddListingPage';
 import EditListingPage from './EditListingPage';
 import { getListings, deleteListing } from '../api/auctions';
-import { getPendingBids, setWinner } from '../api/bids';
+import { getPendingBids, setWinner, rejectBid } from '../api/bids';
 import { getAllUsers, toggleBlockUser, setUserRole, getMe, updateMe } from '../api/auth';
 import { getChatList, getChat, adminSendMsg } from '../api/chat';
 import { getAuctions, setAuctionStatus, createAuction, updateAuction } from '../api/auctions';
@@ -97,14 +97,25 @@ export default function AdminDashboard({ showToast }) {
     return () => { clearInterval(pollRef.current); clearInterval(inquiryPoll); };
   }, []);
 
+  const refreshBidsAndAuctions = async () => {
+    const [freshBids, freshAuctions] = await Promise.all([getPendingBids(), getAuctions()]);
+    setBids(Array.isArray(freshBids) ? freshBids : freshBids.results || []);
+    setAuctions(Array.isArray(freshAuctions) ? freshAuctions : freshAuctions.results || []);
+  };
+
   const handleSetWinner = async (bidId) => {
     try {
       await setWinner(bidId);
-      // Re-fetch both bids and auctions from backend so statuses are accurate
-      const [freshBids, freshAuctions] = await Promise.all([getPendingBids(), getAuctions()]);
-      setBids(Array.isArray(freshBids) ? freshBids : freshBids.results || []);
-      setAuctions(Array.isArray(freshAuctions) ? freshAuctions : freshAuctions.results || []);
-      showToast('Winner set!', 'success');
+      await refreshBidsAndAuctions();
+      showToast('Bid approved — winner set, auction ended!', 'success');
+    } catch(e) { showToast(e.message, 'error'); }
+  };
+
+  const handleRejectBid = async (bidId) => {
+    try {
+      await rejectBid(bidId);
+      await refreshBidsAndAuctions();
+      showToast('Bid rejected.', 'warning');
     } catch(e) { showToast(e.message, 'error'); }
   };
   const handleCreateAuction = async () => {
@@ -207,7 +218,7 @@ export default function AdminDashboard({ showToast }) {
         {[
           ['Live Auctions', auctions.filter(a=>a.status==='live').length, '#22c55e'],
           ['Total Listings', listings.length, '#3b82f6'],
-          ['Awaiting Winner', auctions.filter(a=>a.status==='ended'&&!a.winner).length, '#f59e0b'],
+          ['Pending Bids', bids.filter(b=>b.status==='pending').length, '#f59e0b'],
           ['Users', users.length, '#a855f7'],
           ['New Inquiries', inquiries.filter(i=>!i.is_read).length, '#ef4444'],
         ].map(([l,v,c]) => (
@@ -222,7 +233,7 @@ export default function AdminDashboard({ showToast }) {
         {['overview','listings','auctions','bids','users','inquiries','messages','profile'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ background:'none', border:'none', borderBottom:tab===t?'2px solid #f59e0b':'2px solid transparent', padding:'12px 22px', color:tab===t?'#f59e0b':'#64748b', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'system-ui', letterSpacing:0.5, display:'flex', alignItems:'center', gap:7 }}>
             {t.toUpperCase()}
-            {t==='bids' && auctions.filter(a=>a.status==='ended'&&!a.winner).length>0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{auctions.filter(a=>a.status==='ended'&&!a.winner).length} need winner</span>}
+            {t==='bids' && bids.filter(b=>b.status==='pending').length>0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{bids.filter(b=>b.status==='pending').length} pending</span>}
             {t==='inquiries' && inquiries.filter(i=>!i.is_read).length>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{inquiries.filter(i=>!i.is_read).length}</span>}
             {t==='messages' && chatConvos.reduce((s,c)=>s+c.unread,0)>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{chatConvos.reduce((s,c)=>s+c.unread,0)}</span>}
           </button>
@@ -493,13 +504,14 @@ export default function AdminDashboard({ showToast }) {
 
           <div style={{display:'grid',gap:16}}>
             {auctions.map(a => {
-              const auctionBids = [...bids.filter(b => b.auction === a.id)].sort((x,y) => Number(y.amount) - Number(x.amount));
-              const isEnded     = a.status === 'ended';
-              const hasWinner   = !!a.winner;
-              const isExpanded  = expandedBidAuctions.has(a.id);
-              const topBid      = auctionBids[0];
-              const statusColor = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
-              const needsWinner = isEnded && !hasWinner && auctionBids.length > 0;
+              const auctionBids   = [...bids.filter(b => b.auction === a.id)].sort((x,y) => Number(y.amount) - Number(x.amount));
+              const hasWinner     = !!a.winner;
+              const isExpanded    = expandedBidAuctions.has(a.id);
+              const topBid        = auctionBids[0];
+              const statusColor   = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
+              const pendingCount  = auctionBids.filter(b => b.status === 'pending').length;
+              const needsWinner   = !hasWinner && pendingCount > 0;  // has pending bids waiting for admin decision
+              const isEnded       = a.status === 'ended';
 
               return (
                 <div key={a.id} style={{background:'#0d1117',border:`1px solid ${needsWinner?'#f59e0b55':'#1e293b'}`,borderRadius:14,overflow:'hidden',transition:'border-color 0.2s'}}>
@@ -515,7 +527,7 @@ export default function AdminDashboard({ showToast }) {
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,fontSize:15,marginBottom:3}}>
                         {a.listing?.year} {a.listing?.make} {a.listing?.model}
-                        {needsWinner && <span style={{marginLeft:10,background:'#f59e0b22',color:'#f59e0b',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>NEEDS WINNER</span>}
+                        {needsWinner && <span style={{marginLeft:10,background:'#f59e0b22',color:'#f59e0b',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>{pendingCount} PENDING</span>}
                         {hasWinner   && <span style={{marginLeft:10,background:'#22c55e22',color:'#22c55e',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:8,letterSpacing:1}}>WINNER SET ✓</span>}
                       </div>
                       <div style={{color:'#64748b',fontSize:12,fontFamily:'system-ui'}}>
@@ -557,26 +569,40 @@ export default function AdminDashboard({ showToast }) {
                           </thead>
                           <tbody>
                             {auctionBids.map((bid, idx) => {
-                              // Winner is the bid whose bidder ID matches auction.winner ID
-                              const isWinnerBid = hasWinner && bid.bidder === a.winner;
+                              const isWinner  = bid.status === 'approved';   // exactly one per auction
+                              const isPending = bid.status === 'pending';
+                              const rowBg     = isWinner ? '#052e0a' : isPending && !hasWinner ? '#0d1a2e' : 'transparent';
                               return (
-                                <tr key={bid.id} style={{background:isWinnerBid?'#052e0a':idx===0&&needsWinner?'#1a1400':'transparent'}}>
+                                <tr key={bid.id} style={{background: rowBg, transition:'background 0.2s'}}>
                                   <td style={{...S.td,paddingLeft:24,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>#{idx+1}</td>
                                   <td style={{...S.td,fontWeight:600}}>@{bid.bidder_name}</td>
                                   <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui',fontSize:15}}>€{Number(bid.amount).toLocaleString()}</td>
                                   <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
                                   <td style={S.td}>
-                                    {isWinnerBid                                              && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
-                                    {!isWinnerBid && bid.status === 'rejected'                && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
-                                    {!isWinnerBid && bid.status === 'approved' && !hasWinner  && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
-                                    {!isWinnerBid && bid.status === 'approved' && hasWinner   && <span style={{color:'#64748b',fontSize:12}}>—</span>}
-                                    {bid.status === 'pending'                                 && <span style={{color:'#64748b',fontSize:12}}>—</span>}
+                                    {isWinner                   && <span style={{background:'#22c55e22',color:'#22c55e',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>WINNER ✓</span>}
+                                    {bid.status === 'rejected'  && <span style={{background:'#ef444422',color:'#ef4444',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>REJECTED</span>}
+                                    {isPending && !hasWinner    && <span style={{background:'#f59e0b22',color:'#f59e0b',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>PENDING</span>}
+                                    {isPending && hasWinner     && <span style={{color:'#475569',fontSize:12}}>—</span>}
                                   </td>
                                   <td style={S.td}>
-                                    {isEnded && !hasWinner && (
-                                      <button onClick={() => handleSetWinner(bid.id)} style={{...S.btn,...S.btnSuccess,padding:'5px 14px',fontSize:12}}>
-                                        🏆 Set Winner
-                                      </button>
+                                    {/* Show approve + reject only for pending bids when no winner yet */}
+                                    {isPending && !hasWinner && (
+                                      <div style={{display:'flex',gap:6}}>
+                                        <button
+                                          onClick={() => handleSetWinner(bid.id)}
+                                          style={{...S.btn,...S.btnSuccess,padding:'5px 12px',fontSize:12}}
+                                          title="Approve this bid as winner — ends the auction"
+                                        >
+                                          ✓ Approve
+                                        </button>
+                                        <button
+                                          onClick={() => handleRejectBid(bid.id)}
+                                          style={{...S.btn,...S.btnDanger,padding:'5px 12px',fontSize:12}}
+                                          title="Reject this bid"
+                                        >
+                                          ✗ Reject
+                                        </button>
+                                      </div>
                                     )}
                                   </td>
                                 </tr>
