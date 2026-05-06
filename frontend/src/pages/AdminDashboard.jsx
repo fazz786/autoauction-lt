@@ -218,7 +218,7 @@ export default function AdminDashboard({ showToast }) {
         {[
           ['Live Auctions', auctions.filter(a=>a.status==='live').length, '#22c55e'],
           ['Total Listings', listings.length, '#3b82f6'],
-          ['Pending Bids', bids.filter(b=>b.status==='pending').length, '#f59e0b'],
+          ['Pending Bids', bids.filter(b => b.status !== 'rejected' && !auctions.find(a => a.winner && a.id === b.auction)).length, '#f59e0b'],
           ['Users', users.length, '#a855f7'],
           ['New Inquiries', inquiries.filter(i=>!i.is_read).length, '#ef4444'],
         ].map(([l,v,c]) => (
@@ -233,7 +233,7 @@ export default function AdminDashboard({ showToast }) {
         {['overview','listings','auctions','bids','users','inquiries','messages','profile'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ background:'none', border:'none', borderBottom:tab===t?'2px solid #f59e0b':'2px solid transparent', padding:'12px 22px', color:tab===t?'#f59e0b':'#64748b', fontWeight:700, cursor:'pointer', fontSize:14, fontFamily:'system-ui', letterSpacing:0.5, display:'flex', alignItems:'center', gap:7 }}>
             {t.toUpperCase()}
-            {t==='bids' && bids.filter(b=>b.status==='pending').length>0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{bids.filter(b=>b.status==='pending').length} pending</span>}
+            {t==='bids' && bids.filter(b=>b.status!=='rejected').length - auctions.filter(a=>a.winner).length > 0 && <span style={{background:'#f59e0b22',color:'#f59e0b',borderRadius:10,padding:'1px 7px',fontSize:11}}>{bids.filter(b=>b.status==='pending').length || bids.filter(b=>b.status==='approved'&&!auctions.find(a=>a.winner&&a.id===b.auction)).length} pending</span>}
             {t==='inquiries' && inquiries.filter(i=>!i.is_read).length>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{inquiries.filter(i=>!i.is_read).length}</span>}
             {t==='messages' && chatConvos.reduce((s,c)=>s+c.unread,0)>0 && <span style={{background:'#ef4444',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}}>{chatConvos.reduce((s,c)=>s+c.unread,0)}</span>}
           </button>
@@ -509,8 +509,9 @@ export default function AdminDashboard({ showToast }) {
               const isExpanded    = expandedBidAuctions.has(a.id);
               const topBid        = auctionBids[0];
               const statusColor   = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
-              const pendingCount  = auctionBids.filter(b => b.status === 'pending').length;
-              const needsWinner   = !hasWinner && pendingCount > 0;  // has pending bids waiting for admin decision
+              // Count bids that need admin action (pending OR old auto-approved when no winner yet)
+              const pendingCount  = !hasWinner ? auctionBids.filter(b => b.status !== 'rejected').length : 0;
+              const needsWinner   = pendingCount > 0;
               const isEnded       = a.status === 'ended';
 
               return (
@@ -569,9 +570,11 @@ export default function AdminDashboard({ showToast }) {
                           </thead>
                           <tbody>
                             {auctionBids.map((bid, idx) => {
-                              const isWinner  = bid.status === 'approved';   // exactly one per auction
-                              const isPending = bid.status === 'pending';
-                              const rowBg     = isWinner ? '#052e0a' : isPending && !hasWinner ? '#0d1a2e' : 'transparent';
+                              // A bid is the winner only if the auction has a winner AND this is the one approved bid
+                              const isWinner   = bid.status === 'approved' && hasWinner;
+                              // Treat both genuinely-pending AND old auto-approved (no winner set yet) as actionable
+                              const isActionable = !hasWinner && bid.status !== 'rejected';
+                              const rowBg      = isWinner ? '#052e0a' : isActionable ? '#0d1a2e' : 'transparent';
                               return (
                                 <tr key={bid.id} style={{background: rowBg, transition:'background 0.2s'}}>
                                   <td style={{...S.td,paddingLeft:24,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>#{idx+1}</td>
@@ -579,14 +582,16 @@ export default function AdminDashboard({ showToast }) {
                                   <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui',fontSize:15}}>€{Number(bid.amount).toLocaleString()}</td>
                                   <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
                                   <td style={S.td}>
-                                    {isWinner                   && <span style={{background:'#22c55e22',color:'#22c55e',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>WINNER ✓</span>}
-                                    {bid.status === 'rejected'  && <span style={{background:'#ef444422',color:'#ef4444',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>REJECTED</span>}
-                                    {isPending && !hasWinner    && <span style={{background:'#f59e0b22',color:'#f59e0b',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>PENDING</span>}
-                                    {isPending && hasWinner     && <span style={{color:'#475569',fontSize:12}}>—</span>}
+                                    {isWinner      && <span style={{background:'#22c55e22',color:'#22c55e',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>WINNER ✓</span>}
+                                    {bid.status === 'rejected'
+                                                   && <span style={{background:'#ef444422',color:'#ef4444',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>REJECTED</span>}
+                                    {isActionable  && <span style={{background:'#f59e0b22',color:'#f59e0b',fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:6,letterSpacing:0.5}}>PENDING</span>}
+                                    {!isWinner && !isActionable && bid.status !== 'rejected'
+                                                   && <span style={{color:'#475569',fontSize:12}}>—</span>}
                                   </td>
                                   <td style={S.td}>
-                                    {/* Show approve + reject only for pending bids when no winner yet */}
-                                    {isPending && !hasWinner && (
+                                    {/* Approve / Reject for any unresolved bid when auction has no winner yet */}
+                                    {isActionable && (
                                       <div style={{display:'flex',gap:6}}>
                                         <button
                                           onClick={() => handleSetWinner(bid.id)}
