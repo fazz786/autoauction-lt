@@ -38,12 +38,24 @@ class AuctionListView(generics.ListCreateAPIView):
 class AuctionDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     GET    /api/auctions/<id>/  — public: view auction details
-    PUT    /api/auctions/<id>/  — admin: update auction
+    PATCH  /api/auctions/<id>/  — admin: partial update (reschedule)
     DELETE /api/auctions/<id>/  — admin: cancel auction
+
+    When rescheduling (status → scheduled), winner is cleared and
+    all bids for this auction are reset to 'approved'.
     """
     queryset           = Auction.objects.select_related('listing', 'winner').prefetch_related('listing__images', 'bids')
     serializer_class   = AuctionSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def perform_update(self, serializer):
+        new_status = self.request.data.get('status')
+        instance   = serializer.save()
+        # Clear winner and re-open all bids when rescheduled
+        if new_status == 'scheduled':
+            instance.winner = None
+            instance.save(update_fields=['winner'])
+            instance.bids.all().update(status='approved')
 
 
 class StatsView(APIView):

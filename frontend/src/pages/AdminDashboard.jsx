@@ -100,13 +100,12 @@ export default function AdminDashboard({ showToast }) {
   const handleSetWinner = async (bidId) => {
     try {
       await setWinner(bidId);
-      setBids(bs => bs.map(b => b.id === bidId ? {...b, status:'approved'} : {...b, status: b.auction === bs.find(x=>x.id===bidId)?.auction ? 'rejected' : b.status}));
-      setAuctions(prev => prev.map(a => {
-        const winBid = bids.find(b => b.id === bidId);
-        return winBid && a.id === winBid.auction ? {...a, status:'ended'} : a;
-      }));
-      showToast('Winner set! Auction ended.', 'success');
-    } catch(e) { showToast(e.message,'error'); }
+      // Re-fetch both bids and auctions from backend so statuses are accurate
+      const [freshBids, freshAuctions] = await Promise.all([getPendingBids(), getAuctions()]);
+      setBids(Array.isArray(freshBids) ? freshBids : freshBids.results || []);
+      setAuctions(Array.isArray(freshAuctions) ? freshAuctions : freshAuctions.results || []);
+      showToast('Winner set!', 'success');
+    } catch(e) { showToast(e.message, 'error'); }
   };
   const handleCreateAuction = async () => {
     if (!auctionForm?.listingId || !auctionForm.start || !auctionForm.end) {
@@ -135,14 +134,17 @@ export default function AdminDashboard({ showToast }) {
     }
     setAuctionUpdating(true);
     try {
-      const updated = await updateAuction(editAuctionForm.auctionId, {
+      await updateAuction(editAuctionForm.auctionId, {
         start_time: editAuctionForm.start,
         end_time:   editAuctionForm.end,
         status:     'scheduled',
       });
-      setAuctions(prev => prev.map(a => a.id === editAuctionForm.auctionId ? { ...a, ...updated } : a));
+      // Re-fetch both so winner field and bid statuses are accurate
+      const [freshAuctions, freshBids] = await Promise.all([getAuctions(), getPendingBids()]);
+      setAuctions(Array.isArray(freshAuctions) ? freshAuctions : freshAuctions.results || []);
+      setBids(Array.isArray(freshBids) ? freshBids : freshBids.results || []);
       setEditAuctionForm(null);
-      showToast('Auction rescheduled!', 'success');
+      showToast('Auction rescheduled! Winner cleared — bids are open again.', 'success');
     } catch(e) { showToast(e.message, 'error'); }
     finally { setAuctionUpdating(false); }
   };
@@ -555,7 +557,8 @@ export default function AdminDashboard({ showToast }) {
                           </thead>
                           <tbody>
                             {auctionBids.map((bid, idx) => {
-                              const isWinnerBid = bid.status === 'approved' && hasWinner;
+                              // Winner is the bid whose bidder ID matches auction.winner ID
+                              const isWinnerBid = hasWinner && bid.bidder === a.winner;
                               return (
                                 <tr key={bid.id} style={{background:isWinnerBid?'#052e0a':idx===0&&needsWinner?'#1a1400':'transparent'}}>
                                   <td style={{...S.td,paddingLeft:24,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>#{idx+1}</td>
@@ -563,10 +566,11 @@ export default function AdminDashboard({ showToast }) {
                                   <td style={{...S.td,color:'#f59e0b',fontWeight:700,fontFamily:'system-ui',fontSize:15}}>€{Number(bid.amount).toLocaleString()}</td>
                                   <td style={{...S.td,color:'#64748b',fontFamily:'system-ui',fontSize:12}}>{new Date(bid.created_at).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
                                   <td style={S.td}>
-                                    {bid.status === 'rejected' && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
-                                    {isWinnerBid                && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
-                                    {bid.status === 'approved' && !hasWinner && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
-                                    {bid.status === 'pending'  && <span style={{color:'#64748b',fontSize:12}}>—</span>}
+                                    {isWinnerBid                                              && <span style={{color:'#22c55e',fontSize:12,fontWeight:700}}>WINNER ✓</span>}
+                                    {!isWinnerBid && bid.status === 'rejected'                && <span style={{color:'#ef4444',fontSize:12,fontWeight:700}}>REJECTED</span>}
+                                    {!isWinnerBid && bid.status === 'approved' && !hasWinner  && <span style={{color:'#3b82f6',fontSize:12,fontWeight:600}}>ACTIVE</span>}
+                                    {!isWinnerBid && bid.status === 'approved' && hasWinner   && <span style={{color:'#64748b',fontSize:12}}>—</span>}
+                                    {bid.status === 'pending'                                 && <span style={{color:'#64748b',fontSize:12}}>—</span>}
                                   </td>
                                   <td style={S.td}>
                                     {isEnded && !hasWinner && (
