@@ -51,11 +51,11 @@ class AuctionDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         new_status = self.request.data.get('status')
         instance   = serializer.save()
-        # Clear winner and re-open all bids when rescheduled
-        if new_status == 'scheduled':
+        # Clear winner and reset all bids whenever auction is re-opened
+        if new_status in ('scheduled', 'live'):
             instance.winner = None
             instance.save(update_fields=['winner'])
-            instance.bids.all().update(status='pending')  # reset to pending so admin re-approves
+            instance.bids.all().update(status='pending')
 
 
 class StatsView(APIView):
@@ -95,5 +95,9 @@ class AuctionStatusView(APIView):
             return Response({'detail': f'Status must be one of: {valid}'}, status=400)
 
         auction.status = new_status
+        # Re-opening an auction always clears the previous winner and resets bids
+        if new_status in ('scheduled', 'live'):
+            auction.winner = None
+            auction.bids.all().update(status='pending')
         auction.save()
         return Response(AuctionSerializer(auction).data)

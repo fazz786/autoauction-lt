@@ -22,8 +22,19 @@ class Command(BaseCommand):
         fixed_auctions = 0
 
         for auction in Auction.objects.prefetch_related('bids').all():
-            if auction.winner_id:
-                # Find the single highest bid from the winner to keep as approved
+            # Live/scheduled auctions must never have a winner — clear and reset
+            if auction.status in ('live', 'scheduled') and auction.winner_id:
+                auction.winner = None
+                auction.save(update_fields=['winner'])
+                reset = Bid.objects.filter(auction=auction).update(status='pending')
+                self.stdout.write(
+                    f'  Auction {auction.id} ({auction.listing}) [{auction.status.upper()}]: '
+                    f'cleared stale winner, reset {reset} bid(s) to PENDING'
+                )
+                fixed_auctions += 1
+
+            elif auction.status == 'ended' and auction.winner_id:
+                # Ended with winner — keep only that winner's highest bid as approved
                 winning_bid = (
                     Bid.objects.filter(auction=auction, bidder_id=auction.winner_id)
                     .order_by('-amount')
@@ -32,13 +43,13 @@ class Command(BaseCommand):
                 if winning_bid:
                     winning_bid.status = 'approved'
                     winning_bid.save(update_fields=['status'])
-                    # Reject everything else
                     rejected = Bid.objects.filter(auction=auction).exclude(pk=winning_bid.pk).update(status='rejected')
                     self.stdout.write(
-                        f'  Auction {auction.id} ({auction.listing}): '
+                        f'  Auction {auction.id} ({auction.listing}) [ENDED]: '
                         f'kept bid #{winning_bid.id} as WINNER, rejected {rejected} others'
                     )
                     fixed_auctions += 1
+
             else:
                 # No winner yet — reset any auto-approved bids to pending
                 reset = Bid.objects.filter(auction=auction, status='approved').update(status='pending')

@@ -505,11 +505,12 @@ export default function AdminDashboard({ showToast }) {
           <div style={{display:'grid',gap:16}}>
             {auctions.map(a => {
               const auctionBids   = [...bids.filter(b => b.auction === a.id)].sort((x,y) => Number(y.amount) - Number(x.amount));
-              const hasWinner     = !!a.winner;
+              // Winner is only valid when auction is actually ended
+              const hasWinner     = !!a.winner && a.status === 'ended';
               const isExpanded    = expandedBidAuctions.has(a.id);
               const topBid        = auctionBids[0];
               const statusColor   = {live:'#22c55e', scheduled:'#3b82f6', ended:'#64748b', cancelled:'#ef4444'}[a.status] || '#64748b';
-              // Count bids that need admin action (pending OR old auto-approved when no winner yet)
+              // Count bids that need admin action (any non-rejected bid when no winner confirmed)
               const pendingCount  = !hasWinner ? auctionBids.filter(b => b.status !== 'rejected').length : 0;
               const needsWinner   = pendingCount > 0;
               const isEnded       = a.status === 'ended';
