@@ -1,2 +1,1 @@
-release: python manage.py migrate
-web: gunicorn autoauction_backend.wsgi --log-file -
+web: python manage.py migrate && gunicorn autoauction_backend.wsgi --log-file -
