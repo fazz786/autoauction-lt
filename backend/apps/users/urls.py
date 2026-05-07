@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterView, LoginView, LogoutView, MeView, UserListView, BlockUserView
+from .views import RegisterView, LoginView, LogoutView, MeView, UserListView, BlockUserView, SetRoleView
 
 urlpatterns = [
     path('register/',             RegisterView.as_view(),              name='register'),
@@ -8,4 +8,5 @@ urlpatterns = [
     path('me/',                   MeView.as_view(),                    name='me'),
     path('users/',                UserListView.as_view(),              name='user-list'),
     path('users/<int:pk>/block/', BlockUserView.as_view(),             name='block-user'),
+    path('users/<int:pk>/role/',  SetRoleView.as_view(),               name='set-role'),
 ]

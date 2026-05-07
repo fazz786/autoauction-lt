@@ -46,11 +46,26 @@ class LogoutView(APIView):
 
 
 class MeView(generics.RetrieveUpdateAPIView):
-    """GET/PUT /api/auth/me/ — view or update own profile"""
+    """GET/PATCH /api/auth/me/ — view or update own profile"""
     serializer_class = UserSerializer
 
     def get_object(self):
         return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        password = request.data.get('password')
+        if password:
+            current = request.data.get('current_password')
+            if not current:
+                return Response({'detail': 'Current password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not request.user.check_password(current):
+                return Response({'detail': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+        response = super().update(request, *args, **kwargs)
+        if password:
+            request.user.set_password(password)
+            request.user.save()
+        return response
 
 
 class UserListView(generics.ListAPIView):
@@ -73,3 +88,24 @@ class BlockUserView(APIView):
         user.save()
         action = 'blocked' if user.is_blocked else 'unblocked'
         return Response({'detail': f'User {action} successfully.', 'is_blocked': user.is_blocked})
+
+
+class SetRoleView(APIView):
+    """POST /api/auth/users/<id>/role/ — admin: set or remove admin role"""
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, pk):
+        if request.user.pk == pk:
+            return Response({'detail': 'You cannot change your own role.'}, status=400)
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=404)
+        role = request.data.get('role')
+        if role not in ('admin', 'user'):
+            return Response({'detail': 'Role must be "admin" or "user".'}, status=400)
+        user.role = role
+        user.is_staff = (role == 'admin')
+        user.is_superuser = (role == 'admin')
+        user.save()
+        return Response({'detail': f'Role updated to {role}.', 'role': role})
