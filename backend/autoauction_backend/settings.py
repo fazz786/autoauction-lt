@@ -71,14 +71,21 @@ TEMPLATES = [{
 # ── ASGI / WebSockets ─────────────────────────────────────────────────────────
 ASGI_APPLICATION = 'autoauction_backend.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [config('REDIS_URL', default='redis://localhost:6379')],
+_redis_url = config('REDIS_URL', default='')
+if _redis_url:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [_redis_url]},
         },
-    },
-}
+    }
+else:
+    # No Redis configured — fall back to in-memory (single-process, no WebSockets across workers)
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # ── Database (MySQL locally, PostgreSQL on Railway via DATABASE_URL) ───────────
 _mysql_url = (
