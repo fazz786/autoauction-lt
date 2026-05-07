@@ -176,8 +176,8 @@ export default function AuctionsPage({ setPage, setSelectedCar, initialFilter = 
       {error && !loading && (
         <div style={{ background:'#ef444410', border:'1px solid #ef444430', borderRadius:12, padding:24, textAlign:'center', color:'#ef4444', fontFamily:'system-ui' }}>
           <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
-          <div style={{fontWeight:700,marginBottom:8}}>Cannot connect to Django backend</div>
-          <div style={{fontSize:13,color:'#94a3b8'}}>Run: <code>python manage.py runserver</code></div>
+          <div style={{fontWeight:700,marginBottom:8}}>Unable to load listings</div>
+          <div style={{fontSize:13,color:'#94a3b8'}}>The server is unavailable. Please try again later.</div>
         </div>
       )}
       {!loading && !error && (
