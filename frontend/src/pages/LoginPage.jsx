@@ -53,10 +53,6 @@ export default function LoginPage({ setPage, setUser, showToast }) {
             Don't have an account?{' '}
             <span onClick={() => setPage('signup')} style={{ color: '#f59e0b', cursor: 'pointer' }}>Sign up free</span>
           </div>
-          <div style={{ marginTop: 20, padding: 14, background: '#1e293b', borderRadius: 9, fontSize: 12, color: '#64748b', fontFamily: 'system-ui', lineHeight: 1.7 }}>
-            <strong style={{ color: '#94a3b8' }}>Django must be running</strong> on localhost:8000<br/>
-            Create admin: <code style={{ color: '#94a3b8' }}>python manage.py createsuperuser</code>
-          </div>
         </div>
       </div>
     </div>
