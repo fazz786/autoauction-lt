@@ -4,8 +4,11 @@
    Change BASE_URL here if your Django server runs on a different port.
 ───────────────────────────────────────────────────────────────────────────── */
 
-export const BASE_URL = 'http://localhost:8000/api';
-export const WS_URL   = 'ws://localhost:8000/ws';
+export const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+// Derive WebSocket URL from the API URL (https → wss, http → ws)
+const _wsBase = BASE_URL.replace(/^https/, 'wss').replace(/^http/, 'ws').replace(/\/api$/, '');
+export const WS_URL = process.env.REACT_APP_WS_URL || `${_wsBase}/ws`;
 
 /**
  * Returns headers for every API request.

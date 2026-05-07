@@ -4,6 +4,7 @@ Vytautas Magnus University — Term Paper by Fazle Rabbi Mahim
 """
 
 import os
+import dj_database_url
 from pathlib import Path
 from decouple import config
 
@@ -12,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-production')
 DEBUG      = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.railway.app').split(',')
 
 # ── Applications ──────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',     # serve static files in production
     'corsheaders.middleware.CorsMiddleware',          # must be high up
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -78,18 +80,23 @@ CHANNEL_LAYERS = {
     },
 }
 
-# ── MySQL Database ─────────────────────────────────────────────────────────────
+# ── Database (MySQL locally, PostgreSQL on Railway via DATABASE_URL) ───────────
+_mysql_url = (
+    f"mysql://{config('DB_USER', default='root')}:"
+    f"{config('DB_PASSWORD', default='')}@"
+    f"{config('DB_HOST', default='localhost')}:"
+    f"{config('DB_PORT', default='3306')}/"
+    f"{config('DB_NAME', default='autoauction_db')}"
+)
 DATABASES = {
-    'default': {
-        'ENGINE':   'django.db.backends.mysql',
-        'NAME':     config('DB_NAME',     default='autoauction_db'),
-        'USER':     config('DB_USER',     default='root'),
-        'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST':     config('DB_HOST',     default='localhost'),
-        'PORT':     config('DB_PORT',     default='3306'),
-        'OPTIONS':  {'charset': 'utf8mb4'},
-    }
+    'default': dj_database_url.config(
+        default=_mysql_url,
+        conn_max_age=600,
+    )
 }
+# Keep utf8mb4 charset for local MySQL connections
+if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
+    DATABASES['default'].setdefault('OPTIONS', {})['charset'] = 'utf8mb4'
 
 # ── Authentication ─────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'users.User'
@@ -130,6 +137,7 @@ USE_TZ        = True
 # ── Static & Media files ──────────────────────────────────────────────────────
 STATIC_URL  = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
