@@ -87,23 +87,13 @@ else:
         },
     }
 
-# ── Database (MySQL locally, PostgreSQL on Railway via DATABASE_URL) ───────────
-_mysql_url = (
-    f"mysql://{config('DB_USER', default='root')}:"
-    f"{config('DB_PASSWORD', default='')}@"
-    f"{config('DB_HOST', default='localhost')}:"
-    f"{config('DB_PORT', default='3306')}/"
-    f"{config('DB_NAME', default='autoauction_db')}"
-)
+# ── Database (PostgreSQL on Railway via DATABASE_URL, SQLite fallback) ────────
 DATABASES = {
     'default': dj_database_url.config(
-        default=_mysql_url,
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
-# Keep utf8mb4 charset for local MySQL connections
-if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
-    DATABASES['default'].setdefault('OPTIONS', {})['charset'] = 'utf8mb4'
 
 # ── Authentication ─────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'users.User'
