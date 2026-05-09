@@ -8,10 +8,8 @@ Pillow>=10.4.0
 python-decouple==3.8
 daphne==4.0.0
 
-# Production (Railway) — psycopg2 replaces mysqlclient on Railway
+# Production (Railway)
 gunicorn==21.2.0
-psycopg2-binary==2.9.9
+mysqlclient==2.2.0
 dj-database-url==2.1.0
 whitenoise==6.6.0
-
-# Local dev only (MySQL) — install manually: pip install mysqlclient==2.2.0

@@ -87,13 +87,16 @@ else:
         },
     }
 
-# ── Database (PostgreSQL on Railway via DATABASE_URL, SQLite fallback) ────────
+# ── Database (MySQL on Railway via MYSQL_URL, SQLite fallback for dev) ────────
 DATABASES = {
     'default': dj_database_url.config(
+        env='MYSQL_URL',
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
+if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
+    DATABASES['default'].setdefault('OPTIONS', {})['charset'] = 'utf8mb4'
 
 # ── Authentication ─────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'users.User'
