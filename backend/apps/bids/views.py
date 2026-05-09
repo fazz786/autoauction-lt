@@ -8,6 +8,7 @@ from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from channels.layers import get_channel_layer
+from apps.permissions import IsAdminRole
 from asgiref.sync import async_to_sync
 from .models import Bid
 from .serializers import BidSerializer, BidCreateSerializer
@@ -67,7 +68,7 @@ class BidDetailView(generics.RetrieveAPIView):
 class PendingBidsView(generics.ListAPIView):
     """GET /api/bids/pending/ — kept for backwards compat, now returns all bids for admin"""
     serializer_class   = BidSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get_queryset(self):
         return Bid.objects.select_related('bidder', 'auction__listing').order_by('-created_at')
@@ -82,7 +83,7 @@ class SetWinnerView(APIView):
     - Approves this bid, rejects all others in the same auction
     - Only one winner allowed per auction
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         try:
@@ -110,7 +111,7 @@ class SetWinnerView(APIView):
 
 class RejectBidView(APIView):
     """POST /api/bids/<id>/reject/ — admin: reject a single pending bid"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         try:

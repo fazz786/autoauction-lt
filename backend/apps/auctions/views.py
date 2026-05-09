@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Sum
+from apps.permissions import IsAdminRole
 from .models import Auction
 from .serializers import AuctionSerializer
 from apps.users.models import User
@@ -81,7 +82,7 @@ class StatsView(APIView):
 
 class AuctionStatusView(APIView):
     """POST /api/auctions/<id>/status/ — admin: change auction status"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         try:

@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.permissions import IsAdminRole
 from .models import Comment, CommentLike
 from .serializers import CommentSerializer
 
@@ -25,7 +26,7 @@ class CommentDeleteView(generics.DestroyAPIView):
     """DELETE /api/comments/<id>/ — admin: remove a comment"""
     queryset           = Comment.objects.all()
     serializer_class   = CommentSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
 
 class CommentLikeView(APIView):

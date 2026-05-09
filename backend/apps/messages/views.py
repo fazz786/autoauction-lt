@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.permissions import IsAdminRole
 from .models import Message, SellerInquiry
 from .serializers import MessageSerializer, SellerInquirySerializer
 
@@ -15,7 +16,7 @@ class MessageCreateView(generics.CreateAPIView):
 class MessageInboxView(generics.ListAPIView):
     """GET /api/messages/ — admin: view all received messages, mark as read"""
     serializer_class   = MessageSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get_queryset(self):
         return Message.objects.select_related('sender').all()
@@ -37,7 +38,7 @@ class MyMessagesView(generics.ListAPIView):
 
 class MessageReplyView(APIView):
     """POST /api/messages/<id>/reply/ — admin: reply to a message"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         try:
@@ -65,7 +66,7 @@ class SellerInquiryCreateView(generics.CreateAPIView):
 class SellerInquiryListView(generics.ListAPIView):
     """GET /api/messages/inquiries/ — admin: view all seller inquiries"""
     serializer_class   = SellerInquirySerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get_queryset(self):
         qs = SellerInquiry.objects.all()
@@ -76,7 +77,7 @@ class SellerInquiryListView(generics.ListAPIView):
 
 class SellerInquiryUnreadCountView(APIView):
     """GET /api/messages/inquiries/unread/ — admin: unread count badge"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         return Response({'count': SellerInquiry.objects.filter(is_read=False).count()})

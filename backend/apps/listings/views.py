@@ -1,5 +1,6 @@
 from rest_framework import generics, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from apps.permissions import IsAdminRole
 from .models import Listing, ListingImage
 from .serializers import ListingSerializer, ListingCreateSerializer, ListingImageSerializer
 
@@ -55,7 +56,7 @@ class ListingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class ListingImageUploadView(generics.CreateAPIView):
     """POST /api/listings/<id>/images/ — admin: upload one image for a listing (multipart)"""
-    permission_classes  = [permissions.IsAdminUser]
+    permission_classes  = [IsAdminRole]
     serializer_class    = ListingImageSerializer
     parser_classes      = [__import__('rest_framework.parsers', fromlist=['MultiPartParser']).MultiPartParser]
 
@@ -68,7 +69,7 @@ class ListingImageUploadView(generics.CreateAPIView):
 
 class ListingImageDeleteView(generics.DestroyAPIView):
     """DELETE /api/listings/<pk>/images/<image_pk>/ — admin: delete a single image"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get_object(self):
         return ListingImage.objects.get(pk=self.kwargs['image_pk'], listing_id=self.kwargs['pk'])

@@ -2,6 +2,7 @@ from rest_framework import generics, status, permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.permissions import IsAdminRole
 from .models import User
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserAdminSerializer
 
@@ -71,13 +72,13 @@ class MeView(generics.RetrieveUpdateAPIView):
 class UserListView(generics.ListAPIView):
     """GET /api/auth/users/ — admin: list all users"""
     serializer_class   = UserAdminSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     queryset           = User.objects.all().order_by('-created_at')
 
 
 class BlockUserView(APIView):
     """POST /api/auth/users/<id>/block/ — admin: toggle block status"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         try:
@@ -92,7 +93,7 @@ class BlockUserView(APIView):
 
 class SetRoleView(APIView):
     """POST /api/auth/users/<id>/role/ — admin: set or remove admin role"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pk):
         if request.user.pk == pk:

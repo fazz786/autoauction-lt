@@ -1,6 +1,7 @@
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.permissions import IsAdminRole
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
 from apps.users.models import User
@@ -28,7 +29,7 @@ class MyChatView(APIView):
 
 class AdminChatListView(APIView):
     """GET /api/chat/ — admin: list all users who have active conversations"""
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         user_ids = ChatMessage.objects.values_list('user', flat=True).distinct()
@@ -54,7 +55,7 @@ class AdminChatDetailView(APIView):
     GET  /api/chat/<user_id>/  — admin: fetch full conversation with a user
     POST /api/chat/<user_id>/  — admin: send a message to a user
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get(self, request, user_id):
         try:
